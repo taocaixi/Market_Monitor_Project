@@ -14,15 +14,16 @@ sys.stdout.reconfigure(encoding='utf-8')
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(CURRENT_DIR)
 
-DATA_DIR = os.path.join(BASE_DIR, '1_Data')
 WEB_TEMPLATE_DIR = os.path.join(BASE_DIR, '3_Web')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'Report_Output')
 
-# 原始数据源
-SOURCE_RAW_DIR = r"D:\Onedrive\OFFICEVBA测试文档\002_WeChat_Automation\001A_DailyData_Tracking\01_raw_data"
-SOURCE_SENTIMENT_PATH = os.path.join(SOURCE_RAW_DIR, "涨跌停数据.xlsx")
-SOURCE_INDEX_RECENT = os.path.join(SOURCE_RAW_DIR, "指数跟踪第五版-提取表.xlsx")
-SOURCE_INDEX_EARLY = os.path.join(SOURCE_RAW_DIR, "指数跟踪第五版 - 前期表.xlsx")
+# 外部原始数据源（不再写入 1_Data，直接读取外部目录）
+DEFAULT_EXTERNAL_DATA_DIR = r"D:\Onedrive\OFFICEVBA测试文档\002_WeChat_Automation\001A_DailyData_Tracking\01_raw_data"
+EXTERNAL_DATA_DIR = os.environ.get("EXTERNAL_DATA_DIR", DEFAULT_EXTERNAL_DATA_DIR)
+
+SOURCE_SENTIMENT_PATH = os.path.join(EXTERNAL_DATA_DIR, "涨跌停数据.xlsx")
+SOURCE_INDEX_RECENT = os.path.join(EXTERNAL_DATA_DIR, "指数跟踪第五版-提取表.xlsx")
+SOURCE_INDEX_EARLY = os.path.join(EXTERNAL_DATA_DIR, "指数跟踪第五版 - 前期表_H.xlsx")
 
 # 文件名常量
 FILE_PCT = 'Pctchg_连续表.xlsx'
@@ -93,23 +94,14 @@ def read_wide_table(path):
         return None
 
 def load_all_common_data():
-    """【单次加载】读取所有公共大表"""
+    """读取所有公共大表"""
     print("=== [Stage 1] Loading Common Data ===")
-    
-    dest_folder = os.path.join(DATA_DIR, '000_common_data')
-    if not os.path.exists(dest_folder): os.makedirs(dest_folder)
-    
-    # 1. 搬运文件
-    for f in [FILE_PCT, FILE_AMT, FILE_PRICE, FILE_IND]:
-        src = os.path.join(SOURCE_RAW_DIR, f)
-        dst = os.path.join(dest_folder, f)
-        if os.path.exists(src): safe_copy(src, dst)
-    
+
     data_bundle = {'pct': None, 'amt': None, 'ind': None, 'dates': []}
-    
+
     # 2. 读取数据
     # Pctchg
-    path_pct = os.path.join(dest_folder, FILE_PCT)
+    path_pct = os.path.join(EXTERNAL_DATA_DIR, FILE_PCT)
     df_pct = read_wide_table(path_pct)
     if df_pct is not None:
         # 停牌修正
@@ -117,11 +109,11 @@ def load_all_common_data():
         data_bundle['pct'] = df_pct
         
     # Amount
-    path_amt = os.path.join(dest_folder, FILE_AMT)
+    path_amt = os.path.join(EXTERNAL_DATA_DIR, FILE_AMT)
     data_bundle['amt'] = read_wide_table(path_amt)
     
     # Industry (申万) - 增加清洗逻辑
-    ind_path = os.path.join(dest_folder, FILE_IND)
+    ind_path = os.path.join(EXTERNAL_DATA_DIR, FILE_IND)
     if os.path.exists(ind_path):
         print(f"    - Reading {FILE_IND}...")
         try:
@@ -130,7 +122,7 @@ def load_all_common_data():
             df_ind.drop_duplicates(subset=[df_ind.columns[0]], inplace=True)
             df_ind.set_index(df_ind.columns[0], inplace=True)
             
-            # 【关键修复】确保市值列(第6列, index=5)是数字
+            # 确保市值列(第6列, index=5)是数字
             mv_col_name = df_ind.columns[5] 
             df_ind[mv_col_name] = clean_numeric_series(df_ind[mv_col_name])
             
@@ -155,7 +147,7 @@ def load_all_common_data():
 def process_weekly_data():
     print("=== [Stage 2] Weekly Hotspots ===")
     database = {}
-    target_folder = os.path.join(DATA_DIR, '001_热点股票排名')
+    target_folder = os.path.join(EXTERNAL_DATA_DIR, '001_热点股票排名')
     if os.path.exists(target_folder):
         group_data = []
         for file_path in glob.glob(os.path.join(target_folder, "*.*")):
@@ -185,16 +177,12 @@ def process_sentiment_data(bundle):
     dates = bundle['dates']
     if df_pct is None: return
 
-    dest_s = os.path.join(DATA_DIR, '002_市场情绪跟踪')
-    if not os.path.exists(dest_s): os.makedirs(dest_s)
-    safe_copy(SOURCE_SENTIMENT_PATH, os.path.join(dest_s, '涨跌停数据.xlsx'))
-    
     date_strs = [d.strftime('%Y-%m-%d') for d in dates]
     
     # 1. 涨跌停
     limit_data = {}
     try:
-        df_l = pd.read_excel(os.path.join(dest_s, '涨跌停数据.xlsx'))
+        df_l = pd.read_excel(SOURCE_SENTIMENT_PATH)
         df_l['日期'] = pd.to_datetime(df_l['日期'])
         df_l.sort_values('日期', inplace=True)
         limit_data = {
@@ -305,7 +293,7 @@ def process_industry_analysis(bundle):
         sw2 = str(row.iloc[2]) if pd.notnull(row.iloc[2]) else ""
         sw3 = str(row.iloc[3]) if pd.notnull(row.iloc[3]) else ""
         
-        # 【修复】强制转float，避免字符串导致前端显示0
+        # 强制转float，避免字符串导致前端显示0
         mv = float(row.iloc[5])
         
         # 序列数据
@@ -357,13 +345,8 @@ def load_and_clean_index_excel(file_path):
 def process_index_data():
     print("=== [Stage 5] Index Monitor ===")
     
-    dest_folder = os.path.join(DATA_DIR, '003_指数量价跟踪')
-    if not os.path.exists(dest_folder): os.makedirs(dest_folder)
-    
-    path_recent = os.path.join(dest_folder, '指数跟踪第五版-提取表.xlsx')
-    path_early = os.path.join(dest_folder, '指数跟踪第五版 - 前期表.xlsx')
-    
-    safe_copy(SOURCE_INDEX_RECENT, path_recent)
+    path_recent = SOURCE_INDEX_RECENT
+    path_early = SOURCE_INDEX_EARLY
     
     p1, pe1, v1 = load_and_clean_index_excel(path_recent)
     p2, pe2, v2 = load_and_clean_index_excel(path_early)
