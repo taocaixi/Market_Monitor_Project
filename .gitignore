@@ -179,3 +179,23 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# ---- Generated outputs (local) ----
+Report_Output/
+
+# ---- Large / frequently-updated data (keep local) ----
+1_Data/001_热点股票排名/
+1_Data/002_市场情绪跟踪/
+1_Data/003_指数量价跟踪/
+
+# Excel temp files
+~$*.xlsx
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
