@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融市场数据周报</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --sidebar-bg: #1e293b;
+            --sidebar-hover: #334155;
+            --active-color: #3b82f6;
+            --text-dark: #cbd5e1;
+            --red: #d0021b;
+            --green: #009944;
+            --blue: #0284c7;
+        }
+        body { margin: 0; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg-color); display: flex; height: 100vh; overflow: hidden; }
+        
+        /* 侧边栏样式 */
+        .sidebar { width: 260px; background: var(--sidebar-bg); color: var(--text-dark); display: flex; flex-direction: column; flex-shrink: 0; }
+        .brand { height: 60px; line-height: 60px; text-align: center; font-size: 18px; font-weight: bold; border-bottom: 1px solid #334155; color: white; background: #0f172a; }
+        .menu-container { flex: 1; overflow-y: auto; padding-top: 10px; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        .menu-group-title { padding: 12px 20px; font-size: 12px; font-weight: bold; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-top: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .menu-item { padding: 12px 20px 12px 30px; cursor: pointer; transition: 0.2s; font-size: 14px; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; }
+        .menu-item:hover { background: var(--sidebar-hover); color: white; }
+        .menu-item.active { background: #263345; border-left-color: var(--active-color); color: white; font-weight: 600; }
+        .date-badge { font-size: 11px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; color: #cbd5e1; }
+
+        /* 主区域 */
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: white; padding: 15px 30px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .page-title h2 { margin: 0; font-size: 20px; color: #1e293b; }
+        .page-title p { margin: 5px 0 0; font-size: 13px; color: #64748b; }
+
+        /* 表格区域 */
+        .content-area { flex: 1; padding: 20px; overflow: auto; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; min-height: 400px; display: flex; flex-direction: column; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        thead { background: #f8fafc; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        
+        /* 表头排序样式 */
+        th { 
+            text-align: right; 
+            padding: 12px 16px; 
+            font-weight: 600; 
+            color: #475569; 
+            border-bottom: 2px solid #e2e8f0; 
+            white-space: nowrap; 
+            cursor: pointer; /* 鼠标变手型 */
+            user-select: none; /* 防止双击选中文字 */
+            transition: background 0.2s;
+        }
+        th:hover { background: #e2e8f0; }
+        
+        /* 排序图标 */
+        .sort-icon { display: inline-block; width: 12px; margin-left: 4px; color: #94a3b8; font-size: 10px; }
+        th.sort-asc .sort-icon::after { content: '▲'; color: var(--active-color); }
+        th.sort-desc .sort-icon::after { content: '▼'; color: var(--active-color); }
+        th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: ' '; } /* 默认占位 */
+
+        td { text-align: right; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        
+        /* 锁定前两列 */
+        th:nth-child(1), td:nth-child(1) { position: sticky; left: 0; z-index: 2; text-align: left; background: inherit; border-right: 1px solid #e2e8f0; width: 80px; }
+        th:nth-child(2), td:nth-child(2) { position: sticky; left: 0; z-index: 2; text-align: left; background: inherit; border-right: 1px solid #e2e8f0; left: 80px; }
+        
+        thead th:nth-child(1), thead th:nth-child(2) { z-index: 11; background: #f8fafc; }
+        tbody td:nth-child(1), tbody td:nth-child(2) { background: white; }
+        tr:hover td { background: #f1f5f9 !important; }
+
+        .up { color: var(--red); font-family: 'Consolas', monospace; font-weight: 600; }
+        .down { color: var(--green); font-family: 'Consolas', monospace; font-weight: 600; }
+        .flat { color: #94a3b8; }
+        
+        .tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; display: inline-block; text-align: center; min-width: 30px; font-weight: 500; }
+        .tag-up { background: #fee2e2; color: var(--red); border: 1px solid #fecaca; }
+        .tag-down { background: #dcfce7; color: var(--green); border: 1px solid #bbf7d0; }
+        .tag-new { background: #e0f2fe; color: var(--blue); border: 1px solid #bae6fd; }
+        
+        .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="brand">📈 MARKET MONITOR</div>
+	<a href="index.html" style="display:block; padding:15px 20px; color:#94a3b8; text-decoration:none; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05);">← 返回门户首页</a>
+        <div class="menu-container" id="menu-root"></div>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <div class="page-title">
+                <h2 id="report-title">数据仪表盘</h2>
+                <p>数据来源：<span id="file-source">等待加载...</span> | 记录数：<span id="record-count">-</span></p>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 12px; color: #94a3b8;">AUTO GENERATED REPORT</div>
+                <div style="font-size: 12px; color: #cbd5e1;" id="update-time"></div>
+            </div>
+        </div>
+        <div class="content-area">
+            <div class="card">
+                <div id="table-container" style="display:contents;">
+                    <div class="empty-state">👈 请点击左侧菜单选择要查看的周度数据</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DATABASE = {{DATA_INJECTION}}; 
+        
+        // 全局变量：存储当前正在展示的数据和排序状态
+        let currentTableData = [];
+        let sortState = { column: null, direction: 'asc' }; // 'asc' or 'desc'
+
+        document.getElementById('update-time').innerText = new Date().toLocaleDateString();
+
+        function initMenu() {
+            const menuRoot = document.getElementById('menu-root');
+            const groups = Object.keys(DATABASE).sort();
+
+            if(groups.length === 0) {
+                menuRoot.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:#64748b">没有找到数据文件<br>请检查 1_Data 文件夹</div>';
+                return;
+            }
+
+            groups.forEach(groupName => {
+                const groupTitle = document.createElement('div');
+                groupTitle.className = 'menu-group-title';
+                groupTitle.innerText = groupName;
+                menuRoot.appendChild(groupTitle);
+
+                const files = DATABASE[groupName].sort((a, b) => b.fileName.localeCompare(a.fileName));
+
+                files.forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'menu-item';
+                    item.innerHTML = `<span>${file.date}</span> <span class="date-badge">W${getWeekNumber(file.date)}</span>`;
+                    item.onclick = () => loadData(groupName, file.fileName, item);
+                    menuRoot.appendChild(item);
+                });
+            });
+
+            if (groups.length > 0 && DATABASE[groups[0]].length > 0) {
+                const firstGroup = groups[0];
+                const firstFile = DATABASE[firstGroup].sort((a, b) => b.fileName.localeCompare(a.fileName))[0];
+                const firstItem = menuRoot.querySelectorAll('.menu-item')[0];
+                if(firstItem) loadData(firstGroup, firstFile.fileName, firstItem);
+            }
+        }
+
+        function loadData(group, fileName, domElement) {
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            if(domElement) domElement.classList.add('active');
+
+            const fileData = DATABASE[group].find(f => f.fileName === fileName);
+            if (!fileData) return;
+
+            document.getElementById('report-title').innerText = `${group} - ${fileData.date}`;
+            document.getElementById('file-source').innerText = fileName;
+            document.getElementById('record-count').innerText = fileData.records.length;
+
+            // 1. 保存数据到全局变量
+            // 必须使用 slice() 创建副本，否则排序会影响原始 DATABASE
+            currentTableData = fileData.records.slice(); 
+            
+            // 2. 重置排序状态
+            sortState = { column: null, direction: 'asc' };
+
+            // 3. 渲染
+            renderTable();
+        }
+
+        // 排序处理函数
+        function handleSort(columnKey) {
+            // 如果点击的是当前已排序的列，则反转方向
+            if (sortState.column === columnKey) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                // 如果点击新列，默认降序（金融数据通常看涨幅榜/成交榜，降序更常用）
+                // 除非是日期或代码，但这里统一逻辑简单点，或者默认 desc
+                sortState.column = columnKey;
+                sortState.direction = 'desc'; 
+            }
+
+            // 执行排序
+            currentTableData.sort((a, b) => {
+                let valA = parseValue(a[columnKey]);
+                let valB = parseValue(b[columnKey]);
+
+                if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderTable();
+        }
+
+        // 智能解析数值（用于排序）
+        function parseValue(val) {
+            if (val === null || val === undefined) return -99999999;
+            if (typeof val === 'number') return val;
+            
+            // 处理字符串
+            const str = String(val).trim();
+
+            // 处理 "新进" (让它排在最后或最前，这里设为一个极大值)
+            if (str === '新进') return -999999; 
+
+            // 处理 "↑62" 或 "↓50"
+            // 去掉箭头，如果是↓变成负数
+            if (str.includes('↑')) return parseFloat(str.replace('↑', ''));
+            if (str.includes('↓')) return -parseFloat(str.replace('↓', ''));
+
+            // 处理百分号 "50.5%"
+            if (str.includes('%')) {
+                const num = parseFloat(str.replace('%', ''));
+                if (!isNaN(num)) return num;
+            }
+
+            // 尝试直接转数字
+            const parsed = parseFloat(str);
+            if (!isNaN(parsed)) return parsed;
+
+            // 如果都不是，按字符串本身排序
+            return str;
+        }
+
+        function renderTable() {
+            if (!currentTableData || currentTableData.length === 0) return;
+            
+            const headers = Object.keys(currentTableData[0]);
+            let html = `<table><thead><tr>`;
+            
+            // 生成可点击的表头
+            headers.forEach(h => {
+                let sortClass = '';
+                if (h === sortState.column) {
+                    sortClass = sortState.direction === 'asc' ? 'sort-asc' : 'sort-desc';
+                }
+                // 注意：这里 onclick 调用 handleSort
+                html += `<th class="${sortClass}" onclick="handleSort('${h}')">
+                            ${h}<span class="sort-icon"></span>
+                         </th>`;
+            });
+            html += `</tr></thead><tbody>`;
+
+            // 生成内容
+            currentTableData.forEach(row => {
+                html += `<tr>`;
+                headers.forEach(key => {
+                    let val = row[key];
+                    let displayVal = val;
+                    let cls = '';
+
+                    if (typeof val === 'number') {
+                        if (key.includes('涨跌') || key.includes('%')) {
+                            cls = val > 0 ? 'up' : (val < 0 ? 'down' : 'flat');
+                            displayVal = val.toFixed(2) + '%';
+                        } else if (key.includes('变动') || key.includes('排名')) {
+                             displayVal = val;
+                        } else {
+                            displayVal = val.toFixed(2);
+                        }
+                    } else if (typeof val === 'string') {
+                        if (val.includes('↑')) displayVal = `<span class="tag tag-up">${val}</span>`;
+                        else if (val.includes('↓')) displayVal = `<span class="tag tag-down">${val}</span>`;
+                        else if (val === '新进') displayVal = `<span class="tag tag-new">新进</span>`;
+                    }
+
+                    html += `<td class="${cls}">${displayVal}</td>`;
+                });
+                html += `</tr>`;
+            });
+            html += `</tbody></table>`;
+            
+            document.getElementById('table-container').innerHTML = html;
+        }
+
+        function getWeekNumber(dateStr) {
+            const date = new Date(dateStr);
+            if(isNaN(date.getTime())) return "?";
+            const oneJan = new Date(date.getFullYear(), 0, 1);
+            const numberOfDays = Math.floor((date - oneJan) / (24 * 60 * 60 * 1000));
+            return Math.ceil((date.getDay() + 1 + numberOfDays) / 7);
+        }
+
+        initMenu();
+    </script>
+</body>
+</html>

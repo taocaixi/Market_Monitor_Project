@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指数量价全景监控</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root { 
+            --bg-dark: #0f172a; 
+            --sidebar-bg: #1e293b; 
+            --card-bg: #1e293b; 
+            --text-primary: #f8fafc; 
+            --text-secondary: #94a3b8; 
+            --accent: #3b82f6; 
+            --border: rgba(255,255,255,0.1);
+        }
+        body { margin: 0; background-color: var(--bg-dark); color: var(--text-primary); font-family: "PingFang SC", sans-serif; height: 100vh; display: flex; overflow: hidden; }
+        
+        .sidebar { width: 220px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+        .brand { padding: 20px; font-size: 16px; font-weight: bold; color: white; border-bottom: 1px solid var(--border); }
+        .menu-list { flex: 1; padding: 20px 0; }
+        .menu-item { padding: 15px 25px; cursor: pointer; transition: 0.2s; color: var(--text-secondary); border-left: 3px solid transparent; font-size: 14px; }
+        .menu-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .menu-item.active { background: #263345; border-left-color: var(--accent); color: white; font-weight: 600; }
+        .back-link { margin-top: auto; padding: 20px; border-top: 1px solid var(--border); text-align: center; }
+        .back-btn { color: var(--text-secondary); text-decoration: none; font-size: 13px; border: 1px solid var(--border); padding: 8px 20px; border-radius: 4px; display: block; }
+        .back-btn:hover { border-color: var(--accent); color: white; }
+
+        .main-content { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        .header { background: var(--card-bg); padding: 15px 25px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
+        
+        .controls-group { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .select-group { background: #0f172a; color: white; border: 1px solid var(--border); padding: 5px 10px; border-radius: 4px; outline: none; font-size: 13px; cursor: pointer; }
+        
+        .date-controls { display: flex; gap: 6px; align-items: center; }
+        .btn-range { padding: 4px 8px; font-size: 12px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); border-radius: 4px; transition: 0.2s; }
+        .btn-range:hover { border-color: var(--text-secondary); color: white; }
+        .btn-range.active { background: var(--accent); border-color: var(--accent); color: white; }
+        
+        .custom-date-input { background: #0f172a; border: 1px solid var(--border); color: #cbd5e1; font-family: monospace; font-size: 12px; padding: 3px 5px; border-radius: 4px; }
+        .btn-go { background: var(--accent); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        
+        .range-info { margin-left: 10px; font-size: 12px; color: var(--text-secondary); font-family: monospace; }
+
+        .scroll-area { flex: 1; overflow-y: auto; padding: 20px; position: relative; }
+        .scroll-area::-webkit-scrollbar { width: 8px; }
+        .scroll-area::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .scroll-area::-webkit-scrollbar-track { background: #0f172a; }
+
+        .view-container { display: none; width: 100%; flex-direction: column; gap: 20px; }
+        .view-container.active { display: flex; }
+
+        .row { display: flex; gap: 20px; align-items: flex-start; }
+        .col { flex: 1; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; padding: 15px; }
+        
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .chart-title { font-size: 15px; font-weight: 600; color: #cbd5e1; }
+        .sort-controls button { font-size: 11px; padding: 2px 6px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #94a3b8; cursor: pointer; border-radius: 3px; margin-left: 4px; }
+        .sort-controls button.active { background: rgba(59, 130, 246, 0.2); color: var(--accent); border-color: var(--accent); }
+
+        .chart-canvas { width: 100%; min-height: 400px; transition: height 0.3s ease; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="brand">📈 指数全景监控</div>
+        <div class="menu-list">
+            <div class="menu-item active" onclick="switchMenu('view-vol-price', this)">
+                <span>📊 指数量价变化跟踪</span>
+            </div>
+            <div class="menu-item" onclick="switchMenu('view-pe', this)">
+                <span>💹 指数市盈率跟踪</span>
+            </div>
+        </div>
+        <div class="back-link">
+            <a href="index.html" class="back-btn">← 返回门户首页</a>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <div style="font-size:16px; font-weight:bold;">
+                <span id="page-title">量价变化跟踪</span>
+            </div>
+            
+            <div class="controls-group">
+                <select id="group-select" class="select-group" onchange="changeGroup()"></select>
+
+                <div class="date-controls">
+                    <button class="btn-range active" onclick="setRange('1d')">当日</button>
+                    <button class="btn-range" onclick="setRange('5d')">5日</button>
+                    <button class="btn-range" onclick="setRange('20d')">20日</button>
+                    <button class="btn-range" onclick="setRange('60d')">60日</button>
+                    <button class="btn-range" onclick="setRange('120d')">120日</button>
+                    <button class="btn-range" onclick="setRange('250d')">250日</button>
+                    <button class="btn-range" onclick="setRange('month')">本月</button>
+                    <button class="btn-range" onclick="setRange('quarter')">本季</button>
+                    <button class="btn-range" onclick="setRange('year')">本年</button>
+                </div>
+
+                <div class="date-controls" style="border-left: 1px solid var(--border); padding-left: 10px;">
+                    <input type="date" id="start-date" class="custom-date-input">
+                    <span style="color:#94a3b8">-</span>
+                    <input type="date" id="end-date" class="custom-date-input">
+                    <button class="btn-go" onclick="setCustomRange()">查询</button>
+                </div>
+                <div class="range-info" id="date-range-text"></div>
+            </div>
+        </div>
+
+        <div class="scroll-area">
+            
+            <div id="view-vol-price" class="view-container active">
+                <div class="row">
+                    <div class="col">
+                        <div class="chart-header">
+                            <span class="chart-title">区间涨跌幅 (%)</span>
+                            <div class="sort-controls">
+                                <button class="btn-sort active" onclick="setSort('pct', 'desc')">↓</button>
+                                <button class="btn-sort" onclick="setSort('pct', 'asc')">↑</button>
+                            </div>
+                        </div>
+                        <div id="chart-pct" class="chart-canvas"></div>
+                    </div>
+                    <div class="col">
+                        <div class="chart-header">
+                            <span class="chart-title">成交额变化率 (%)</span>
+                            <div class="sort-controls">
+                                <button class="btn-sort" onclick="setSort('vol', 'desc')">↓</button>
+                                <button class="btn-sort" onclick="setSort('vol', 'asc')">↑</button>
+                            </div>
+                        </div>
+                        <div id="chart-vol-chg" class="chart-canvas"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-pe" class="view-container">
+                <div class="row">
+                    <div class="col">
+                        <div class="chart-header">
+                            <span class="chart-title">市盈率概览 (●期末 ○期初 ↑高 ↓低)</span>
+                            <div class="sort-controls">
+                                <button class="btn-sort" onclick="setSort('curPe', 'desc')">↓</button>
+                                <button class="btn-sort" onclick="setSort('curPe', 'asc')">↑</button>
+                            </div>
+                        </div>
+                        <div id="chart-pe-val" class="chart-canvas"></div>
+                    </div>
+                    <div class="col">
+                        <div class="chart-header">
+                            <span class="chart-title">历史分位数 (%) - 基于全部历史数据</span>
+                            <div class="sort-controls">
+                                <button class="btn-sort" onclick="setSort('peRank', 'desc')">↓</button>
+                                <button class="btn-sort" onclick="setSort('peRank', 'asc')">↑</button>
+                            </div>
+                        </div>
+                        <div id="chart-pe-rank" class="chart-canvas"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const RAW_DATA = {{INDEX_DATA}};
+        
+        const STATE = {
+            view: 'view-vol-price',
+            group: '',
+            rangeType: '1d', 
+            customStart: '',
+            customEnd: '',
+            sortKey: 'pct',
+            sortDir: 'desc',
+            indicesData: []
+        };
+
+        const charts = {};
+
+        function init() {
+            const select = document.getElementById('group-select');
+            const groupNames = Object.keys(RAW_DATA.groups);
+            groupNames.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.innerText = name;
+                select.appendChild(opt);
+            });
+            if (groupNames.length > 0) {
+                STATE.group = groupNames[0];
+                select.value = STATE.group;
+            }
+
+            const dates = RAW_DATA.dates;
+            if (dates.length > 0) {
+                document.getElementById('end-date').value = dates[dates.length - 1];
+                const prev60 = new Date(dates[dates.length - 1]);
+                prev60.setDate(prev60.getDate() - 60);
+                document.getElementById('start-date').value = prev60.toISOString().split('T')[0];
+            }
+
+            charts.pct = echarts.init(document.getElementById('chart-pct'));
+            charts.vol = echarts.init(document.getElementById('chart-vol-chg'));
+            charts.peVal = echarts.init(document.getElementById('chart-pe-val'));
+            charts.peRank = echarts.init(document.getElementById('chart-pe-rank'));
+
+            window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
+            calculateData();
+        }
+
+        function changeGroup() {
+            STATE.group = document.getElementById('group-select').value;
+            calculateData();
+        }
+
+        function switchMenu(viewId, btn) {
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            document.getElementById('page-title').innerText = viewId === 'view-vol-price' ? '指数量价变化跟踪' : '指数市盈率跟踪';
+            STATE.view = viewId;
+            if(viewId === 'view-pe') { setSort('curPe', 'desc'); }
+            else { setSort('pct', 'desc'); }
+            setTimeout(() => Object.values(charts).forEach(c => c.resize()), 50);
+        }
+
+        function setRange(type) {
+            document.querySelectorAll('.btn-range').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            STATE.rangeType = type;
+            calculateData();
+        }
+
+        function setCustomRange() {
+            const start = document.getElementById('start-date').value;
+            const end = document.getElementById('end-date').value;
+            if(!start || !end) { alert('请选择开始和结束日期'); return; }
+            if(start > end) { alert('开始日期不能晚于结束日期'); return; }
+            document.querySelectorAll('.btn-range').forEach(b => b.classList.remove('active'));
+            STATE.rangeType = 'custom';
+            STATE.customStart = start;
+            STATE.customEnd = end;
+            calculateData();
+        }
+
+        function setSort(key, dir) {
+            STATE.sortKey = key;
+            STATE.sortDir = dir;
+            document.querySelectorAll('.btn-sort').forEach(b => b.classList.remove('active'));
+            if(event && event.target) event.target.classList.add('active');
+            renderCharts();
+        }
+
+        function getRangeIndices() {
+            const dates = RAW_DATA.dates;
+            const total = dates.length;
+            const lastDateStr = dates[total - 1];
+            const lastDate = new Date(lastDateStr);
+            let startIdx = 0;
+            let endIdx = total - 1;
+
+            if (STATE.rangeType === 'custom') {
+                let s = dates.findIndex(d => d >= STATE.customStart);
+                let e = -1;
+                for(let i = total - 1; i >= 0; i--) {
+                    if(dates[i] <= STATE.customEnd) { e = i; break; }
+                }
+                startIdx = s === -1 ? 0 : s;
+                endIdx = e === -1 ? total - 1 : e;
+            } else {
+                if (STATE.rangeType.endsWith('d')) {
+                    startIdx = Math.max(0, total - parseInt(STATE.rangeType));
+                } else if (STATE.rangeType === 'week') {
+                    const day = lastDate.getDay() || 7; 
+                    const targetDate = new Date(lastDate);
+                    targetDate.setDate(lastDate.getDate() - day + 1);
+                    const targetStr = targetDate.toISOString().split('T')[0];
+                    startIdx = dates.findIndex(d => d >= targetStr);
+                } else if (STATE.rangeType === 'month') {
+                    const targetStr = lastDateStr.substring(0, 7) + '-01';
+                    startIdx = dates.findIndex(d => d >= targetStr);
+                } else if (STATE.rangeType === 'quarter') {
+                    const month = lastDate.getMonth() + 1;
+                    const qStartMonth = month - (month - 1) % 3;
+                    const targetStr = `${lastDate.getFullYear()}-${String(qStartMonth).padStart(2, '0')}-01`;
+                    startIdx = dates.findIndex(d => d >= targetStr);
+                } else if (STATE.rangeType === 'year') {
+                    const targetStr = `${lastDate.getFullYear()}-01-01`;
+                    startIdx = dates.findIndex(d => d >= targetStr);
+                }
+            }
+
+            if (startIdx === -1) startIdx = 0;
+            if (startIdx > endIdx) startIdx = endIdx; 
+            return { start: startIdx, end: endIdx };
+        }
+
+        function calculateData() {
+            const { start, end } = getRangeIndices();
+            document.getElementById('date-range-text').innerText = `${RAW_DATA.dates[start]} ~ ${RAW_DATA.dates[end]}`;
+
+            const len = end - start + 1;
+            const prevStart = start - len; 
+            const prevEnd = start - 1;
+
+            const result = [];
+            const targetItems = RAW_DATA.groups[STATE.group] || [];
+
+            targetItems.forEach(item => {
+                const realKey = item.key;
+                const displayName = item.alias;
+                if (!RAW_DATA.indices[realKey]) return; 
+
+                const d = RAW_DATA.indices[realKey];
+                
+                // 1. 涨跌幅
+                const pBase = d.p[Math.max(0, start - 1)];
+                const pEnd = d.p[end];
+                const pct = pBase ? ((pEnd - pBase) / pBase) * 100 : 0;
+
+                // 2. 成交额
+                const volSlice = d.v.slice(start, end + 1);
+                const avgVol = volSlice.reduce((a,b)=>a+b, 0) / (volSlice.length || 1);
+                let volChg = null; 
+                if (prevStart >= 0) {
+                    const prevSlice = d.v.slice(prevStart, prevEnd + 1);
+                    if (prevSlice.length > 0) {
+                        const prevAvg = prevSlice.reduce((a,b)=>a+b, 0) / prevSlice.length;
+                        if (prevAvg > 0) volChg = ((avgVol - prevAvg) / prevAvg) * 100;
+                    }
+                }
+
+                // 3. 市盈率数值 (区间统计)
+                const curPe = d.pe[end];
+                const startPe = d.pe[start]; // 期初
+                const peSlice = d.pe.slice(start, end + 1);
+                const maxPe = Math.max(...peSlice);
+                const minPe = Math.min(...peSlice);
+                
+                // 4. PE 分位数 (历史全量)
+                const historyPool = d.pe.slice(0, end + 1).filter(x => x !== 0); 
+                let rank = 0;
+                if (historyPool.length > 0 && curPe !== 0) {
+                    const countLower = historyPool.filter(x => x < curPe).length;
+                    rank = (countLower / historyPool.length) * 100;
+                }
+
+                result.push({
+                    name: displayName,
+                    pct: pct,
+                    pEnd: pEnd,
+                    volChg: volChg,
+                    avgVol: avgVol, 
+                    
+                    curPe: curPe,
+                    startPe: startPe,
+                    maxPe: maxPe,
+                    minPe: minPe,
+                    peRank: rank
+                });
+            });
+
+            STATE.indicesData = result;
+            renderCharts();
+        }
+
+        function renderCharts() {
+            const data = STATE.indicesData;
+            
+            data.sort((a, b) => {
+                let vA = a[STATE.sortKey];
+                let vB = b[STATE.sortKey];
+                if (vA === null) vA = -999999;
+                if (vB === null) vB = -999999;
+                return STATE.sortDir === 'asc' ? vA - vB : vB - vA;
+            });
+
+            const barHeight = 40;
+            const minH = 400;
+            const dynamicHeight = Math.max(minH, data.length * barHeight) + 'px';
+
+            document.getElementById('chart-pct').style.height = dynamicHeight;
+            document.getElementById('chart-vol-chg').style.height = dynamicHeight;
+            document.getElementById('chart-pe-val').style.height = dynamicHeight;
+            document.getElementById('chart-pe-rank').style.height = dynamicHeight;
+
+            charts.pct.resize();
+            charts.vol.resize();
+            charts.peVal.resize();
+            charts.peRank.resize();
+
+            const yLabels = data.map(d => d.name);
+
+            // --- 1. 涨跌幅 ---
+            charts.pct.setOption({
+                tooltip: { 
+                    trigger: 'axis', 
+                    backgroundColor: 'rgba(30, 41, 59, 0.9)', borderColor: '#3b82f6', textStyle: { color: '#cbd5e1' },
+                    formatter: (params) => {
+                        const d = data[params[0].dataIndex];
+                        return `<div style="font-weight:bold; color:#fff; margin-bottom:4px;">${d.name}</div>
+                                涨跌幅: <span style="color:#fff; font-weight:bold">${d.pct.toFixed(2)}%</span><br/>
+                                <span style="color:#94a3b8">收盘点数:</span> <span style="color:#fff; font-weight:bold">${d.pEnd.toFixed(2)}</span>`;
+                    }
+                },
+                grid: { top: 30, bottom: 0, left: 10, right: 40, containLabel: true },
+                xAxis: { type: 'value', position: 'top', splitLine: { lineStyle: { color: '#334155' } }, axisLabel: { color: '#94a3b8' } },
+                yAxis: { type: 'category', data: yLabels, inverse: true, axisLabel: { color: '#cbd5e1', fontSize: 13 } },
+                series: [{
+                    type: 'bar',
+                    data: data.map(d => ({ value: d.pct.toFixed(2), itemStyle: { color: d.pct >= 0 ? '#ef4444' : '#22c55e' } })),
+                    label: { show: true, position: 'right', color: '#fff', formatter: '{c}%' },
+                    barWidth: 20
+                }]
+            });
+
+            // --- 2. 成交额变化率 ---
+            charts.vol.setOption({
+                tooltip: { 
+                    trigger: 'axis', 
+                    backgroundColor: 'rgba(30, 41, 59, 0.9)', borderColor: '#3b82f6', textStyle: { color: '#cbd5e1' },
+                    formatter: (params) => {
+                        const d = data[params[0].dataIndex];
+                        const chgStr = d.volChg !== null ? d.volChg.toFixed(1) + '%' : '无上期数据';
+                        return `<div style="font-weight:bold; color:#fff; margin-bottom:4px;">${d.name}</div>
+                                变化率: <span style="color:#fff; font-weight:bold">${chgStr}</span><br/>
+                                <span style="color:#94a3b8">日均成交:</span> <span style="color:#fff; font-weight:bold">${(d.avgVol/100000000).toFixed(2)} 亿</span>`;
+                    }
+                },
+                grid: { top: 30, bottom: 0, left: 10, right: 40, containLabel: true },
+                xAxis: { type: 'value', position: 'top', splitLine: { lineStyle: { color: '#334155' } }, axisLabel: { color: '#94a3b8' } },
+                yAxis: { type: 'category', data: yLabels, inverse: true, axisLabel: { show: false } },
+                series: [{
+                    type: 'bar',
+                    data: data.map(d => ({
+                        value: d.volChg !== null ? d.volChg.toFixed(1) : 0,
+                        itemStyle: { color: (d.volChg || 0) >= 0 ? '#f59e0b' : '#3b82f6' }
+                    })),
+                    label: { show: true, position: 'right', color: '#fff', formatter: (p) => {
+                        const raw = data[p.dataIndex];
+                        return raw.volChg !== null ? p.value + '%' : '-';
+                    }},
+                    barWidth: 20
+                }]
+            });
+
+            // --- 3. PE 数值 (左 - 增强版) ---
+            charts.peVal.setOption({
+                tooltip: { 
+                    trigger: 'item', // 改为 item 触发，避免 scatter 重叠时显示不清
+                    backgroundColor: 'rgba(30, 41, 59, 0.9)', borderColor: '#3b82f6', textStyle: { color: '#cbd5e1' },
+                    formatter: (params) => {
+                        // 无论悬停哪个点，都显示该行的完整信息
+                        const d = data[params.dataIndex];
+                        return `<div style="font-weight:bold; color:#fff; margin-bottom:4px;">${d.name}</div>
+                                <span style="color:#3b82f6">● 期末: ${d.curPe.toFixed(1)}</span><br/>
+                                <span style="color:#cbd5e1">○ 期初: ${d.startPe.toFixed(1)}</span><br/>
+                                <span style="color:#ef4444">↑ 最高: ${d.maxPe.toFixed(1)}</span><br/>
+                                <span style="color:#22c55e">↓ 最低: ${d.minPe.toFixed(1)}</span>`;
+                    }
+                },
+                grid: { top: 30, bottom: 0, left: 10, right: 30, containLabel: true },
+                xAxis: { 
+                    type: 'value', position: 'top', min: -50, max: 300, 
+                    splitLine: { lineStyle: { color: '#334155' } }, 
+                    axisLabel: { color: '#94a3b8' } 
+                },
+                yAxis: { type: 'category', data: yLabels, inverse: true, axisLabel: { color: '#cbd5e1' } },
+                series: [
+                    // 主条形：期末值
+                    {
+                        type: 'bar',
+                        name: '期末',
+                        data: data.map(d => d.curPe.toFixed(1)),
+                        itemStyle: { color: '#3b82f6' },
+                        label: { show: true, position: 'right', color: '#fff' },
+                        barWidth: 20,
+                        z: 1
+                    },
+                    // 散点：期初值 (空心圆)
+                    {
+                        type: 'scatter',
+                        name: '期初',
+                        symbol: 'emptyCircle',
+                        symbolSize: 10,
+                        itemStyle: { color: '#fff', borderColor: '#fff', borderWidth: 2 },
+                        data: data.map((d, i) => [d.startPe, i]),
+                        z: 2
+                    },
+                    // 散点：最高值 (红箭头)
+                    {
+                        type: 'scatter',
+                        name: '最高',
+                        symbol: 'arrow',
+                        symbolSize: 12,
+                        symbolRotate: 0, // 向上
+                        itemStyle: { color: '#ef4444' },
+                        data: data.map((d, i) => [d.maxPe, i]),
+                        z: 2
+                    },
+                    // 散点：最低值 (绿箭头)
+                    {
+                        type: 'scatter',
+                        name: '最低',
+                        symbol: 'arrow',
+                        symbolSize: 12,
+                        symbolRotate: 180, // 向下
+                        itemStyle: { color: '#22c55e' },
+                        data: data.map((d, i) => [d.minPe, i]),
+                        z: 2
+                    }
+                ]
+            });
+
+            // --- 4. PE 分位数 (右) ---
+            charts.peRank.setOption({
+                tooltip: { 
+                    trigger: 'axis', 
+                    formatter: (p) => {
+                        const d = data[p[0].dataIndex];
+                        return `${d.name}<br/>历史分位: <span style="color:#fff;font-weight:bold">${d.peRank.toFixed(1)}%</span>`;
+                    }
+                },
+                grid: { top: 30, bottom: 0, left: 10, right: 30, containLabel: true },
+                xAxis: { 
+                    type: 'value', position: 'top', min: 0, max: 100, 
+                    splitLine: { lineStyle: { color: '#334155' } }, 
+                    axisLabel: { color: '#94a3b8', formatter: '{value}%' } 
+                },
+                yAxis: { type: 'category', data: yLabels, inverse: true, axisLabel: { show: false } },
+                series: [{
+                    type: 'bar',
+                    data: data.map(d => {
+                        let color = '#22c55e'; // < 30%
+                        if(d.peRank > 70) color = '#ef4444';
+                        else if(d.peRank > 30) color = '#f59e0b';
+                        return { value: d.peRank.toFixed(1), itemStyle: { color: color } };
+                    }),
+                    label: { show: true, position: 'right', color: '#fff', formatter: '{c}%' },
+                    barWidth: 20,
+                    showBackground: true,
+                    backgroundStyle: { color: 'rgba(255, 255, 255, 0.05)' }
+                }]
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

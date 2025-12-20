@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>市场情绪跟踪</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --sidebar-bg: #1e293b;
+            --active-color: #3b82f6;
+            --text-color: #334155;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+        }
+        body { margin: 0; background: var(--bg-color); font-family: "PingFang SC", sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* 侧边栏 */
+        .sidebar { width: 240px; background: var(--sidebar-bg); color: #cbd5e1; display: flex; flex-direction: column; flex-shrink: 0; }
+        .brand { padding: 20px; font-size: 16px; font-weight: bold; color: white; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between; }
+        .back-link { font-size: 12px; color: #94a3b8; text-decoration: none; padding: 5px 10px; border: 1px solid #475569; border-radius: 4px; }
+        .back-link:hover { color: white; border-color: white; }
+        
+        .menu-list { flex: 1; padding-top: 20px; overflow-y: auto; }
+        .menu-item { padding: 12px 24px; cursor: pointer; transition: 0.2s; border-left: 3px solid transparent; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .menu-item:hover { background: #334155; color: white; }
+        .menu-item.active { background: #263345; border-left-color: var(--active-color); color: white; font-weight: 600; }
+
+        /* 主区域 */
+        .main-content { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow: hidden; }
+        .chart-card { background: var(--card-bg); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); flex: 1; padding: 20px; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0; }
+        .chart-title { font-size: 18px; font-weight: bold; color: var(--text-color); }
+        .chart-desc { font-size: 12px; color: #94a3b8; }
+
+        /* 图表容器 */
+        #chart-container { flex: 1; width: 100%; position: relative; }
+        .chart-instance { width: 100%; height: 100%; }
+        
+        /* 布局辅助：用于上下两个图表的情况 */
+        .split-view { display: flex; flex-direction: column; height: 100%; gap: 10px; }
+        .split-chart { flex: 1; min-height: 0; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="brand">
+            <span>📊 情绪监测中心</span>
+            <a href="index.html" class="back-link">退出</a>
+        </div>
+        <div class="menu-list" id="menu-container"></div>
+    </div>
+
+    <div class="main-content">
+        <div class="chart-card">
+            <div class="chart-header">
+                <div class="chart-title" id="current-title">加载中...</div>
+                <div class="chart-desc">支持鼠标滚轮缩放 / 拖拽查看历史数据</div>
+            </div>
+            <div id="chart-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const DATASET = {{CHART_DATA}};
+        let myCharts = [];
+
+        function init() {
+            renderMenu();
+            if (DATASET.menu.length > 0) {
+                loadView(DATASET.menu[0].id);
+            }
+            window.addEventListener('resize', () => {
+                myCharts.forEach(c => c.resize());
+            });
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menu-container');
+            let html = '';
+            DATASET.menu.forEach(item => {
+                html += `<div class="menu-item" id="menu-${item.id}" onclick="loadView('${item.id}')">
+                            <span>${item.icon || '📈'}</span>
+                            <span>${item.name}</span>
+                         </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function loadView(viewId) {
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`menu-${viewId}`).classList.add('active');
+
+            const menuItem = DATASET.menu.find(m => m.id === viewId);
+            document.getElementById('current-title').innerText = menuItem.name;
+
+            myCharts.forEach(c => c.dispose());
+            myCharts = [];
+            const container = document.getElementById('chart-container');
+            container.innerHTML = '';
+
+            if (viewId === 'limit_up_down') renderLimitUpDown(container);
+            else if (viewId === 'market_breadth') renderMarketBreadth(container);
+            else if (viewId === 'big_movers') renderBigMovers(container);
+            else if (viewId === 'turnover_conc') renderTurnoverConc(container);
+            else if (viewId === 'turnover_perf') renderTurnoverPerf(container);
+        }
+
+        // ================= 1. 涨跌停与成交额 =================
+        function renderLimitUpDown(container) {
+            container.innerHTML = '<div id="c1" class="chart-instance"></div>';
+            const chart = echarts.init(document.getElementById('c1'));
+            myCharts.push(chart);
+            
+            const data = DATASET.charts.limit_up_down;
+            const dates = data.dates;
+            const latestVol = data.volume[data.volume.length - 1];
+            
+            const option = {
+                tooltip: { 
+                    trigger: 'axis', axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = `<b>${params[0].axisValue}</b><br/>`;
+                        params.forEach(item => {
+                            let val = item.value;
+                            if (item.seriesName === '成交额') val = (val/10000).toFixed(2) + ' 万亿';
+                            else val = val + ' 家';
+                            res += `${item.marker} ${item.seriesName}: ${val}<br/>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['成交额', '涨停家数', '跌停家数'] },
+                grid: { left: '3%', right: '3%', bottom: '10%', containLabel: true },
+                dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
+                xAxis: { type: 'category', data: dates },
+                yAxis: [
+                    { type: 'value', name: '成交额(万亿)', position: 'left', splitLine: { show: false }, 
+                      axisLabel: { formatter: (v) => (v/10000).toFixed(1) } },
+                    { type: 'value', name: '家数', position: 'right' }
+                ],
+                series: [
+                    { 
+                        name: '成交额', type: 'bar', data: data.volume, itemStyle: { color: '#e2e8f0' }, yAxisIndex: 0,
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 50,
+                            data: [
+                                { type: 'max', name: '最高', itemStyle: {color: '#ef4444'} },
+                                { type: 'min', name: '最低', itemStyle: {color: '#22c55e'} },
+                                { 
+                                    name: '最新', coord: [data.volume.length - 1, latestVol], value: latestVol,
+                                    itemStyle: {color: '#3b82f6'}
+                                }
+                            ],
+                            label: { 
+                                show: true, color: '#fff', fontSize: 10,
+                                formatter: (p) => (p.value/10000).toFixed(2) 
+                            }
+                        }
+                    },
+                    { name: '涨停家数', type: 'line', smooth: true, symbol: 'none', data: data.up_counts, itemStyle: { color: '#ef4444' }, yAxisIndex: 1 },
+                    { name: '跌停家数', type: 'line', smooth: true, symbol: 'none', data: data.down_counts, itemStyle: { color: '#22c55e' }, yAxisIndex: 1 }
+                ]
+            };
+            chart.setOption(option);
+        }
+
+// ================= 2. 两市涨跌分布 (修复联动版) =================
+        function renderMarketBreadth(container) {
+            container.innerHTML = `
+                <div class="split-view">
+                    <div id="c_top" class="split-chart" style="flex:2"></div>
+                    <div id="c_bot" class="split-chart" style="flex:1"></div>
+                </div>`;
+            
+            const cTop = echarts.init(document.getElementById('c_top'));
+            const cBot = echarts.init(document.getElementById('c_bot'));
+            myCharts.push(cTop, cBot);
+            const data = DATASET.charts.market_breadth;
+            
+            // 建立联动
+            echarts.connect([cTop, cBot]);
+
+            // 上图：堆积柱状图
+            cTop.setOption({
+                title: { text: '个股涨跌数量分布', left: 'center', textStyle: { fontSize: 14 } },
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                legend: { top: 25 },
+                grid: { left: '3%', right: '3%', bottom: 0, containLabel: true },
+                
+                // 【核心修复】必须添加 dataZoom 配置，否则无法接收联动信号
+                // type: 'inside' 表示支持鼠标滚轮缩放，但不显示滑块条，保持界面简洁
+                // start/end 必须和下图保持一致，否则初始显示会错位
+                dataZoom: [
+                    { type: 'inside', xAxisIndex: 0, start: 80, end: 100 }
+                ],
+
+                xAxis: { type: 'category', data: data.dates, axisLabel: { show: false }, axisTick: { show: false } },
+                yAxis: { type: 'value' },
+                series: [
+                    { name: '上涨', type: 'bar', stack: 'total', data: data.up, itemStyle: { color: '#ef4444' } },
+                    { name: '平盘/停牌', type: 'bar', stack: 'total', data: data.flat, itemStyle: { color: '#94a3b8' } },
+                    { name: '下跌', type: 'bar', stack: 'total', data: data.down, itemStyle: { color: '#C3F7D6' } } // 浅绿色
+                ]
+            });
+
+            // 下图：占比折线图 (带滑块控件)
+            cBot.setOption({
+                title: { text: '涨跌占比 (%)', left: 'center', textStyle: { fontSize: 12 } },
+                tooltip: { trigger: 'axis', formatter: '{b}<br/>{a0}: {c0}%<br/>{a1}: {c1}%' },
+                legend: { top: 20 },
+                grid: { left: '3%', right: '3%', top: 40, bottom: 20, containLabel: true },
+                
+                // 下图保留 slider (滑块) 和 inside (滚轮)
+                dataZoom: [
+                    { type: 'slider', xAxisIndex: 0, start: 80, end: 100 }, 
+                    { type: 'inside', xAxisIndex: 0 }
+                ],
+                
+                xAxis: { type: 'category', data: data.dates },
+                yAxis: { type: 'value', max: 100 },
+                series: [
+                    { name: '上涨占比', type: 'line', smooth: true, symbol: 'none', data: data.r_up, itemStyle: { color: '#ef4444' } },
+                    { name: '下跌占比', type: 'line', smooth: true, symbol: 'none', data: data.r_down, itemStyle: { color: '#22c55e' } }
+                ]
+            });
+        }
+
+        // ================= 3. 前日大涨大跌后续 =================
+        function renderBigMovers(container) {
+            container.innerHTML = '<div id="c1" class="chart-instance"></div>';
+            const chart = echarts.init(document.getElementById('c1'));
+            myCharts.push(chart);
+            const data = DATASET.charts.big_movers;
+
+            chart.setOption({
+                tooltip: { 
+                    trigger: 'axis', axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = `<b>${params[0].axisValue}</b><br/>`;
+                        params.forEach(item => {
+                            let val = item.value;
+                            if (item.seriesName === '合计成交额') val = (val).toFixed(0) + ' 亿';
+                            else val = val.toFixed(2) + '%';
+                            res += `${item.marker} ${item.seriesName}: ${val}<br/>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['前日大涨个股今日表现', '前日大跌个股今日表现', '合计成交额'] },
+                grid: { left: '3%', right: '3%', bottom: '10%', containLabel: true },
+                dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
+                xAxis: { type: 'category', data: data.dates },
+                yAxis: [
+                    { type: 'value', name: '涨跌幅(%)', position: 'left' },
+                    { type: 'value', name: '成交额(亿)', position: 'right', splitLine: { show: false },
+                      axisLabel: { formatter: (v) => (v).toFixed(0) } }
+                ],
+                series: [
+                    { name: '合计成交额', type: 'bar', yAxisIndex: 1, data: data.amt, itemStyle: { color: '#e2e8f0' } },
+                    { name: '前日大涨股今日表现', type: 'line', smooth: false, symbol: 'none', data: data.up_next, itemStyle: { color: '#ef4444' } },
+                    { name: '前日大跌股今日表现', type: 'line', smooth: false, symbol: 'none', data: data.down_next, itemStyle: { color: '#22c55e' } }
+                ]
+            });
+        }
+
+        // ================= 4. 成交额集中度 =================
+        function renderTurnoverConc(container) {
+            container.innerHTML = '<div id="c1" class="chart-instance"></div>';
+            const chart = echarts.init(document.getElementById('c1'));
+            myCharts.push(chart);
+            const data = DATASET.charts.turnover_conc;
+
+            chart.setOption({
+                tooltip: { 
+                    trigger: 'axis', axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = `<b>${params[0].axisValue}</b><br/>`;
+                        params.forEach(item => {
+                            let val = item.value;
+                            if (item.seriesName.includes('成交额')) val = (val).toFixed(0) + ' 亿';
+                            else val = val.toFixed(2) + '%';
+                            res += `${item.marker} ${item.seriesName}: ${val}<br/>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['Top100成交额', 'Top100占比', '后3000占比'] },
+                grid: { left: '3%', right: '3%', bottom: '10%', containLabel: true },
+                dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
+                xAxis: { type: 'category', data: data.dates },
+                yAxis: [
+                    { type: 'value', name: '占比(%)', position: 'left', min: 0, max: 40 }, // 上限40
+                    { type: 'value', name: '成交额(亿)', position: 'right', splitLine: { show: false },
+                      axisLabel: { formatter: (v) => (v).toFixed(0) } }
+                ],
+                series: [
+                    { name: 'Top100成交额', type: 'bar', yAxisIndex: 1, data: data.top100_amt, itemStyle: { color: '#bae6fd' } },
+                    { name: 'Top100占比', type: 'line', smooth: false, symbol: 'none', data: data.top100_ratio, itemStyle: { color: '#ef4444' } },
+                    { name: '后3000占比', type: 'line', smooth: false, symbol: 'none', data: data.bot3000_ratio, itemStyle: { color: '#22c55e' } }
+                ]
+            });
+        }
+
+        // ================= 5. 量价背离 =================
+        function renderTurnoverPerf(container) {
+            container.innerHTML = '<div id="c1" class="chart-instance"></div>';
+            const chart = echarts.init(document.getElementById('c1'));
+            myCharts.push(chart);
+            const data = DATASET.charts.turnover_perf;
+
+            chart.setOption({
+                tooltip: { 
+                    trigger: 'axis', axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = `<b>${params[0].axisValue}</b><br/>`;
+                        params.forEach(item => {
+                            res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(2)}%<br/>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['Top100涨幅', '后3000涨幅', '涨幅差(Top-Bot)'] },
+                grid: { left: '3%', right: '3%', bottom: '10%', containLabel: true },
+                dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
+                xAxis: { type: 'category', data: data.dates },
+                yAxis: { type: 'value', name: '涨跌幅(%)', position: 'left' },
+                series: [
+                    { name: '涨幅差(Top-Bot)', type: 'bar', data: data.diff, itemStyle: { color: '#bae6fd' } },
+                    { name: 'Top100涨幅', type: 'line', smooth: false, symbol: 'circle', data: data.top100_pct, itemStyle: { color: '#ef4444' } },
+                    { name: '后3000涨幅', type: 'line', smooth: false, symbol: 'circle', data: data.bot3000_pct, itemStyle: { color: '#22c55e' } }
+                ]
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
