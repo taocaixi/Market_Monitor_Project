@@ -1,11 +1,237 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Market Monitor</title>
-  </head>
-  <body>
-    <h1>GitHub Pages OK</h1>
-    <p>If you can see this page, Pages is working.</p>
-  </body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Intelligence Core</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --hover-accent: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* 顶部导航 */
+        .header {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo span { color: var(--accent); }
+
+        /* 主体内容 */
+        .container {
+            flex: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 60px;
+            animation: fadeIn 0.8s ease-out;
+        }
+        .welcome-section h1 {
+            font-size: 48px;
+            margin-bottom: 16px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .welcome-section p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* 卡片网格 */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(59, 130, 246, 0.5);
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+            background: #253045;
+        }
+
+        .icon {
+            font-size: 32px;
+            margin-bottom: 20px;
+            background: rgba(59, 130, 246, 0.1);
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            color: var(--accent);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover .icon {
+            transform: scale(1.1);
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .card h3 {
+            margin: 0 0 12px 0;
+            font-size: 20px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .card p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* 状态标签 */
+        .status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .status.active { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.2); }
+        .status.soon { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255,255,255,0.2);
+            font-size: 12px;
+            margin-top: auto;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 13.2L7.33333 9L13.8333 15.5L22 3" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M22 3V9.5" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M22 3H15.5" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            FINANCE <span>CORE</span>
+        </div>
+        <div style="font-size:12px; color:#64748b; font-weight: 500;">PERSONAL DASHBOARD</div>
+    </div>
+
+    <div class="container">
+        <div class="welcome-section">
+            <h1>市场数据中心</h1>
+            <p>集成多维度金融数据，自动化追踪市场热点、情绪周期与指数动向。</p>
+        </div>
+
+        <div class="grid">
+            <a href="market_data.html" class="card">
+                <div class="status active">Active</div>
+                <div class="icon">📈</div>
+                <h3>周度热点监控</h3>
+                <p>追踪每周全市场成交额排名、涨跌幅异动及新晋热点股票。支持多周数据回溯与点击排序。</p>
+            </a>
+
+            <a href="market_sentiment.html" class="card">
+                <div class="status active">Active</div>
+                <div class="icon">📊</div>
+                <h3>市场情绪跟踪</h3>
+                <p>可视化呈现近60日A股成交额与涨跌停家数。自动同步每日数据，精准捕捉市场冰点与高潮。</p>
+            </a>
+
+            <a href="index_monitor.html" class="card">
+                <div class="status active">Active</div>
+                <div class="icon">🏦</div>
+                <h3>指数全景监控</h3>
+                <p>多维度对比各大指数的区间涨跌幅、市盈率估值及成交活跃度。支持近5日、本月、本季灵活切换。</p>
+            </a>
+
+            <a href="industry_monitor.html" class="card">
+                <div class="status active">Active</div>
+                <div class="icon">🏭</div>
+                <h3>申万行业全景透视</h3>
+                <p>基于申万三级行业的深度聚合分析。支持任意时间段的涨跌幅、成交额、领涨个股统计。</p>
+            </a>
+
+
+            <a href="#" class="card" style="opacity: 0.6; cursor: not-allowed;">
+                <div class="status soon">Planned</div>
+                <div class="icon">⚙️</div>
+                <h3>系统设置</h3>
+                <p>数据源管理、脚本自动运行计划及系统日志查看。</p>
+            </a>
+        </div>
+    </div>
+
+    <div class="footer">
+        &copy; 2025 Market Intelligence Project. Powered by Python Automation.
+    </div>
+
+</body>
 </html>
