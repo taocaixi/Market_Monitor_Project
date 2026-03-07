@@ -133,7 +133,7 @@ def load_all_common_data():
     # 3. 对齐日期
     if data_bundle['pct'] is not None and data_bundle['amt'] is not None:
         common = data_bundle['pct'].columns.intersection(data_bundle['amt'].columns)
-        if len(common) > 250: common = common[-250:] # 最近250天
+        #if len(common) > 250: common = common[-250:] # 最近250天
         
         data_bundle['dates'] = common
         data_bundle['pct'] = data_bundle['pct'][common]
