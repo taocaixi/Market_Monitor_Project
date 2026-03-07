@@ -344,6 +344,58 @@
             const chart = echarts.init(document.getElementById('c1'));
             myCharts.push(chart);
             const data = DATASET.charts.index_ratio;
+            const total = data.dates.length;
+
+            const getVisibleRange = () => {
+                const option = chart.getOption();
+                const zoom = option.dataZoom && option.dataZoom[0] ? option.dataZoom[0] : {};
+                const startPct = zoom.start != null ? zoom.start : 0;
+                const endPct = zoom.end != null ? zoom.end : 100;
+                let startIdx = Math.floor((startPct / 100) * (total - 1));
+                let endIdx = Math.ceil((endPct / 100) * (total - 1));
+                startIdx = Math.max(0, Math.min(startIdx, total - 1));
+                endIdx = Math.max(startIdx, Math.min(endIdx, total - 1));
+                return { startIdx, endIdx };
+            };
+
+            const normalizeByStart = (sourceArr, startIdx) => {
+                const base = sourceArr[startIdx] || 0;
+                if (!base) return sourceArr.map(() => null);
+                return sourceArr.map(v => Number((v / base).toFixed(4)));
+            };
+
+            const calcAxisRange = (arrA, arrB, startIdx, endIdx) => {
+                const values = arrA.slice(startIdx, endIdx + 1).concat(arrB.slice(startIdx, endIdx + 1));
+                const minV = Math.min(...values);
+                const maxV = Math.max(...values);
+                const span = Math.max((maxV - minV) * 0.12, 0.01);
+                return { min: minV - span, max: maxV + span };
+            };
+
+            const updateNormalizedSeries = () => {
+                const { startIdx, endIdx } = getVisibleRange();
+                const hs300Norm = normalizeByStart(data.hs300_raw, startIdx);
+                const zz1000Norm = normalizeByStart(data.zz1000_raw, startIdx);
+                const ratioRange = calcAxisRange(data.ratio, data.ratio, startIdx, endIdx);
+                const normRange = calcAxisRange(hs300Norm, zz1000Norm, startIdx, endIdx);
+
+                chart.setOption({
+                    yAxis: [
+                        { min: ratioRange.min, max: ratioRange.max },
+                        {
+                            min: normRange.min,
+                            max: normRange.max,
+                            axisLabel: { formatter: (v) => Number(v).toFixed(3) }
+                        }
+                    ],
+                    series: [
+                        {},
+                        { data: hs300Norm },
+                        { data: zz1000Norm }
+                    ]
+                });
+            };
+
             const latestRatio = data.ratio[data.ratio.length - 1];
 
             chart.setOption({
@@ -355,16 +407,16 @@
                         params.forEach(item => {
                             if (item.seriesName === '点位比值(沪深300/中证1000)') {
                                 res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)}<br/>`;
-                            } else if (item.seriesName === '沪深300(点位)') {
-                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(0)}<br/>`;
-                            } else if (item.seriesName === '中证1000(点位)') {
-                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(0)}<br/>`;
+                            } else if (item.seriesName === '沪深300(标准化)') {
+                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(3)}<br/>`;
+                            } else if (item.seriesName === '中证1000(标准化)') {
+                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(3)}<br/>`;
                             }
                         });
                         return res;
                     }
                 },
-                legend: { data: ['点位比值(沪深300/中证1000)', '沪深300(点位)', '中证1000(点位)'] },
+                legend: { data: ['点位比值(沪深300/中证1000)', '沪深300(标准化)', '中证1000(标准化)'] },
                 grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
                 dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
                 xAxis: { type: 'category', data: data.dates },
@@ -373,15 +425,14 @@
                         type: 'value',
                         name: '比值',
                         position: 'left',
-                        min: 0.2,
                         axisLabel: { formatter: (v) => Number(v).toFixed(3) }
                     },
                     {
                         type: 'value',
-                        name: '指数点位',
+                        name: '标准化价格',
                         position: 'right',
                         splitLine: { show: false },
-                        axisLabel: { formatter: (v) => Number(v).toFixed(0) }
+                        axisLabel: { formatter: (v) => Number(v).toFixed(3) }
                     }
                 ],
                 series: [
@@ -414,7 +465,7 @@
                         }
                     },
                     {
-                        name: '沪深300(点位)',
+                        name: '沪深300(标准化)',
                         type: 'line',
                         yAxisIndex: 1,
                         smooth: false,
@@ -424,7 +475,7 @@
                         itemStyle: { color: '#2563eb' }
                     },
                     {
-                        name: '中证1000(点位)',
+                        name: '中证1000(标准化)',
                         type: 'line',
                         yAxisIndex: 1,
                         smooth: false,
@@ -435,6 +486,9 @@
                     }
                 ]
             });
+
+            chart.on('datazoom', updateNormalizedSeries);
+            updateNormalizedSeries();
         }
 
 
