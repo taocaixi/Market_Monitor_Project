@@ -106,6 +106,7 @@
             else if (viewId === 'big_movers') renderBigMovers(container);
             else if (viewId === 'turnover_conc') renderTurnoverConc(container);
             else if (viewId === 'turnover_perf') renderTurnoverPerf(container);
+            else if (viewId === 'index_ratio') renderIndexRatio(container);
         }
 
         // ================= 1. 涨跌停与成交额 =================
@@ -335,6 +336,87 @@
                 ]
             });
         }
+
+
+        // ================= 6. 沪深300/中证1000 比价 =================
+        function renderIndexRatio(container) {
+            container.innerHTML = '<div id="c1" class="chart-instance"></div>';
+            const chart = echarts.init(document.getElementById('c1'));
+            myCharts.push(chart);
+            const data = DATASET.charts.index_ratio;
+
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = `<b>${params[0].axisValue}</b><br/>`;
+                        params.forEach(item => {
+                            if (item.seriesName === '点位比值(沪深300/中证1000)') {
+                                res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)}<br/>`;
+                            } else if (item.seriesName === '沪深300(标准化)') {
+                                const raw = data.hs300_raw[item.dataIndex];
+                                res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)} (点位 ${raw})<br/>`;
+                            } else if (item.seriesName === '中证1000(标准化)') {
+                                const raw = data.zz1000_raw[item.dataIndex];
+                                res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)} (点位 ${raw})<br/>`;
+                            }
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['点位比值(沪深300/中证1000)', '沪深300(标准化)', '中证1000(标准化)'] },
+                grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+                dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
+                xAxis: { type: 'category', data: data.dates },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '比值',
+                        position: 'left',
+                        axisLabel: { formatter: (v) => Number(v).toFixed(3) }
+                    },
+                    {
+                        type: 'value',
+                        name: '标准化点位',
+                        position: 'right',
+                        splitLine: { show: false },
+                        axisLabel: { formatter: (v) => Number(v).toFixed(2) }
+                    }
+                ],
+                series: [
+                    {
+                        name: '点位比值(沪深300/中证1000)',
+                        type: 'bar',
+                        yAxisIndex: 0,
+                        data: data.ratio,
+                        itemStyle: { color: '#dbeafe' },
+                        barGap: '0%'
+                    },
+                    {
+                        name: '沪深300(标准化)',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: false,
+                        symbol: 'none',
+                        lineStyle: { width: 2 },
+                        data: data.hs300_norm,
+                        itemStyle: { color: '#2563eb' }
+                    },
+                    {
+                        name: '中证1000(标准化)',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: false,
+                        symbol: 'none',
+                        lineStyle: { width: 2 },
+                        data: data.zz1000_norm,
+                        itemStyle: { color: '#f59e0b' }
+                    }
+                ]
+            });
+        }
+
 
         init();
     </script>

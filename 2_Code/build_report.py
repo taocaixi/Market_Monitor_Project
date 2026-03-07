@@ -240,20 +240,68 @@ def process_sentiment_data(bundle):
             
     res_perf = {k: [0 if pd.isna(x) else x for x in v] for k,v in res_perf.items()}
 
+    # 5. 沪深300 vs 中证1000（标准化走势 + 点位比值）
+    index_ratio_data = {
+        "dates": [],
+        "hs300_norm": [],
+        "zz1000_norm": [],
+        "ratio": [],
+        "hs300_raw": [],
+        "zz1000_raw": []
+    }
+    try:
+        p1, _, _ = load_and_clean_index_excel(SOURCE_INDEX_RECENT)
+        p2, _, _ = load_and_clean_index_excel(SOURCE_INDEX_EARLY)
+
+        if p1 is not None:
+            df_price = pd.concat([p2, p1]) if p2 is not None else p1.copy()
+            df_price = df_price[~df_price.index.duplicated(keep='last')]
+            df_price.sort_index(inplace=True)
+            df_price.ffill(inplace=True)
+
+            cols = [str(c) for c in df_price.columns]
+            hs_col = next((c for c in cols if '沪深300' in c), None)
+            zz_col = next((c for c in cols if '中证1000' in c), None)
+
+            if hs_col and zz_col:
+                subset = df_price[[hs_col, zz_col]].apply(pd.to_numeric, errors='coerce').dropna()
+                
+                #if len(subset) > 250:
+                #    subset = subset.iloc[-250:]
+
+                hs_raw = subset[hs_col]
+                zz_raw = subset[zz_col]
+                hs_base = hs_raw.iloc[0] if len(hs_raw) else 0
+                zz_base = zz_raw.iloc[0] if len(zz_raw) else 0
+
+                if hs_base and zz_base:
+                    index_ratio_data = {
+                        "dates": subset.index.strftime('%Y-%m-%d').tolist(),
+                        "hs300_norm": (hs_raw / hs_base).round(4).tolist(),
+                        "zz1000_norm": (zz_raw / zz_base).round(4).tolist(),
+                        "ratio": (hs_raw / zz_raw).round(4).tolist(),
+                        "hs300_raw": hs_raw.round(2).tolist(),
+                        "zz1000_raw": zz_raw.round(2).tolist()
+                    }
+    except:
+        pass
+
     full_data = {
         "menu": [
             {"id": "limit_up_down", "name": "涨跌停与成交额"},
             {"id": "market_breadth", "name": "两市涨跌分布"},
             {"id": "big_movers", "name": "前日大涨大跌个股"},
             {"id": "turnover_conc", "name": "成交额集中度"},
-            {"id": "turnover_perf", "name": "量价背离监控"}
+            {"id": "turnover_perf", "name": "量价背离监控"},
+            {"id": "index_ratio", "name": "沪深300/中证1000 比价"}
         ],
         "charts": {
             "limit_up_down": limit_data,
             "market_breadth": {"dates": date_strs, "up": c_up, "down": c_down, "flat": c_flat, "r_up": r_up, "r_down": r_down},
             "big_movers": res_move,
             "turnover_conc": res_conc,
-            "turnover_perf": res_perf
+            "turnover_perf": res_perf,
+            "index_ratio": index_ratio_data
         }
     }
     
@@ -279,6 +327,7 @@ def process_industry_analysis(bundle):
     print(f"  - Valid Stocks: {len(valid_codes)}")
     
     date_strs = [d.strftime('%Y-%m-%d') for d in dates]
+
     stocks_data = {}
     
     subset_pct = df_pct.loc[valid_codes]
