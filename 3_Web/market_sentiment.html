@@ -354,18 +354,16 @@
                         params.forEach(item => {
                             if (item.seriesName === '点位比值(沪深300/中证1000)') {
                                 res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)}<br/>`;
-                            } else if (item.seriesName === '沪深300(标准化)') {
-                                const raw = data.hs300_raw[item.dataIndex];
-                                res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)} (点位 ${raw})<br/>`;
-                            } else if (item.seriesName === '中证1000(标准化)') {
-                                const raw = data.zz1000_raw[item.dataIndex];
-                                res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)} (点位 ${raw})<br/>`;
+                            } else if (item.seriesName === '沪深300(点位)') {
+                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(2)}<br/>`;
+                            } else if (item.seriesName === '中证1000(点位)') {
+                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(2)}<br/>`;
                             }
                         });
                         return res;
                     }
                 },
-                legend: { data: ['点位比值(沪深300/中证1000)', '沪深300(标准化)', '中证1000(标准化)'] },
+                legend: { data: ['点位比值(沪深300/中证1000)', '沪深300(点位)', '中证1000(点位)'] },
                 grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
                 dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
                 xAxis: { type: 'category', data: data.dates },
@@ -378,7 +376,7 @@
                     },
                     {
                         type: 'value',
-                        name: '标准化点位',
+                        name: '指数点位',
                         position: 'right',
                         splitLine: { show: false },
                         axisLabel: { formatter: (v) => Number(v).toFixed(2) }
@@ -394,23 +392,23 @@
                         barGap: '0%'
                     },
                     {
-                        name: '沪深300(标准化)',
+                        name: '沪深300(点位)',
                         type: 'line',
                         yAxisIndex: 1,
                         smooth: false,
                         symbol: 'none',
                         lineStyle: { width: 2 },
-                        data: data.hs300_norm,
+                        data: data.hs300_raw,
                         itemStyle: { color: '#2563eb' }
                     },
                     {
-                        name: '中证1000(标准化)',
+                        name: '中证1000(点位)',
                         type: 'line',
                         yAxisIndex: 1,
                         smooth: false,
                         symbol: 'none',
                         lineStyle: { width: 2 },
-                        data: data.zz1000_norm,
+                        data: data.zz1000_raw,
                         itemStyle: { color: '#f59e0b' }
                     }
                 ]
