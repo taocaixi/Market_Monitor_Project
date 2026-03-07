@@ -344,6 +344,7 @@
             const chart = echarts.init(document.getElementById('c1'));
             myCharts.push(chart);
             const data = DATASET.charts.index_ratio;
+            const latestRatio = data.ratio[data.ratio.length - 1];
 
             chart.setOption({
                 tooltip: {
@@ -355,9 +356,9 @@
                             if (item.seriesName === '点位比值(沪深300/中证1000)') {
                                 res += `${item.marker} ${item.seriesName}: ${item.value.toFixed(3)}<br/>`;
                             } else if (item.seriesName === '沪深300(点位)') {
-                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(2)}<br/>`;
+                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(0)}<br/>`;
                             } else if (item.seriesName === '中证1000(点位)') {
-                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(2)}<br/>`;
+                                res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(0)}<br/>`;
                             }
                         });
                         return res;
@@ -372,6 +373,7 @@
                         type: 'value',
                         name: '比值',
                         position: 'left',
+                        min: 0.2,
                         axisLabel: { formatter: (v) => Number(v).toFixed(3) }
                     },
                     {
@@ -379,7 +381,7 @@
                         name: '指数点位',
                         position: 'right',
                         splitLine: { show: false },
-                        axisLabel: { formatter: (v) => Number(v).toFixed(2) }
+                        axisLabel: { formatter: (v) => Number(v).toFixed(0) }
                     }
                 ],
                 series: [
@@ -389,7 +391,27 @@
                         yAxisIndex: 0,
                         data: data.ratio,
                         itemStyle: { color: '#dbeafe' },
-                        barGap: '0%'
+                        barGap: '0%',
+                        markPoint: {
+                            symbol: 'pin',
+                            symbolSize: 50,
+                            data: [
+                                { type: 'max', name: '最高', itemStyle: { color: '#ef4444' } },
+                                { type: 'min', name: '最低', itemStyle: { color: '#22c55e' } },
+                                {
+                                    name: '最新',
+                                    coord: [data.ratio.length - 1, latestRatio],
+                                    value: latestRatio,
+                                    itemStyle: { color: '#3b82f6' }
+                                }
+                            ],
+                            label: {
+                                show: true,
+                                color: '#fff',
+                                fontSize: 10,
+                                formatter: (p) => Number(p.value).toFixed(3)
+                            }
+                        }
                     },
                     {
                         name: '沪深300(点位)',
