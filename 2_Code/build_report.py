@@ -394,6 +394,13 @@ def process_industry_analysis(bundle):
         final_html = html.replace('{{INDUSTRY_DATA}}', json.dumps(dataset, ensure_ascii=False))
         with open(out, 'w', encoding='utf-8') as f: f.write(final_html)
 
+    tpl_detail = os.path.join(WEB_TEMPLATE_DIR, 'industry_period_detail.html')
+    out_detail = os.path.join(OUTPUT_DIR, 'industry_period_detail.html')
+    if os.path.exists(tpl_detail):
+        with open(tpl_detail, 'r', encoding='utf-8') as f: html = f.read()
+        final_html = html.replace('{{INDUSTRY_DATA}}', json.dumps(dataset, ensure_ascii=False))
+        with open(out_detail, 'w', encoding='utf-8') as f: f.write(final_html)
+
 # ================= 模块5：指数监控 =================
 def load_and_clean_index_excel(file_path):
     try:
