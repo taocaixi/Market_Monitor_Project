@@ -224,7 +224,7 @@ def process_sentiment_data(bundle):
         if len(s_amt) > 100:
             top100 = s_amt.iloc[:100]
             bot3000 = s_amt.iloc[-3000:] if len(s_amt)>3000 else s_amt.iloc[-min(len(s_amt),3000):]
-            
+
             res_conc['top100_amt'].append(top100.sum())
             res_conc['top100_ratio'].append(top100.sum()/total*100)
             res_conc['bot3000_ratio'].append(bot3000.sum()/total*100)
@@ -248,6 +248,11 @@ def process_sentiment_data(bundle):
         "ratio": [],
         "hs300_raw": [],
         "zz1000_raw": []
+    }
+    index_volatility_data = {
+        "dates": [],
+        "hs300_vol": [],
+        "zz1000_vol": []
     }
     try:
         p1, _, _ = load_and_clean_index_excel(SOURCE_INDEX_RECENT)
@@ -275,6 +280,13 @@ def process_sentiment_data(bundle):
                 zz_base = zz_raw.iloc[0] if len(zz_raw) else 0
 
                 if hs_base and zz_base:
+                    hs_ret = hs_raw.pct_change()
+                    zz_ret = zz_raw.pct_change()
+                    rolling_window = 20
+                    annual_factor = np.sqrt(252) * 100
+                    hs_vol = hs_ret.rolling(rolling_window).std() * annual_factor
+                    zz_vol = zz_ret.rolling(rolling_window).std() * annual_factor
+
                     index_ratio_data = {
                         "dates": subset.index.strftime('%Y-%m-%d').tolist(),
                         "hs300_norm": (hs_raw / hs_base).round(4).tolist(),
@@ -282,6 +294,17 @@ def process_sentiment_data(bundle):
                         "ratio": (hs_raw / zz_raw).round(4).tolist(),
                         "hs300_raw": hs_raw.round(2).tolist(),
                         "zz1000_raw": zz_raw.round(2).tolist()
+                    }
+
+                    vol_df = pd.DataFrame({
+                        'hs300_vol': hs_vol,
+                        'zz1000_vol': zz_vol
+                    }).dropna()
+
+                    index_volatility_data = {
+                        "dates": vol_df.index.strftime('%Y-%m-%d').tolist(),
+                        "hs300_vol": vol_df['hs300_vol'].round(2).tolist(),
+                        "zz1000_vol": vol_df['zz1000_vol'].round(2).tolist()
                     }
     except:
         pass
@@ -293,7 +316,8 @@ def process_sentiment_data(bundle):
             {"id": "big_movers", "name": "前日大涨大跌个股"},
             {"id": "turnover_conc", "name": "成交额集中度"},
             {"id": "turnover_perf", "name": "量价背离监控"},
-            {"id": "index_ratio", "name": "沪深300/中证1000 比价"}
+            {"id": "index_ratio", "name": "沪深300/中证1000 比价"},
+            {"id": "index_volatility", "name": "沪深300/中证1000 波动率"}
         ],
         "charts": {
             "limit_up_down": limit_data,
@@ -301,7 +325,8 @@ def process_sentiment_data(bundle):
             "big_movers": res_move,
             "turnover_conc": res_conc,
             "turnover_perf": res_perf,
-            "index_ratio": index_ratio_data
+            "index_ratio": index_ratio_data,
+            "index_volatility": index_volatility_data
         }
     }
     

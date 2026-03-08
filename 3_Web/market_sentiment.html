@@ -107,6 +107,7 @@
             else if (viewId === 'turnover_conc') renderTurnoverConc(container);
             else if (viewId === 'turnover_perf') renderTurnoverPerf(container);
             else if (viewId === 'index_ratio') renderIndexRatio(container);
+            else if (viewId === 'index_volatility') renderIndexVolatility(container);
         }
 
         // ================= 1. 涨跌停与成交额 =================
@@ -492,6 +493,57 @@
         }
 
 
+        // ================= 7. 沪深300/中证1000 波动率 =================
+        function renderIndexVolatility(container) {
+            container.innerHTML = '<div id="c1" class="chart-instance"></div>';
+            const chart = echarts.init(document.getElementById('c1'));
+            myCharts.push(chart);
+            const data = DATASET.charts.index_volatility;
+
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross' },
+                    formatter: function(params) {
+                        let res = `<b>${params[0].axisValue}</b><br/>`;
+                        params.forEach(item => {
+                            res += `${item.marker} ${item.seriesName}: ${Number(item.value).toFixed(2)}%<br/>`;
+                        });
+                        return res;
+                    }
+                },
+                legend: { data: ['沪深300波动率', '中证1000波动率'] },
+                grid: { left: '3%', right: '3%', bottom: '10%', containLabel: true },
+                dataZoom: [{ type: 'slider', start: 80, end: 100 }, { type: 'inside' }],
+                xAxis: { type: 'category', data: data.dates },
+                yAxis: {
+                    type: 'value',
+                    name: '滚动波动率(%)',
+                    axisLabel: { formatter: (v) => `${Number(v).toFixed(0)}%` }
+                },
+                series: [
+                    {
+                        name: '沪深300波动率',
+                        type: 'line',
+                        smooth: false,
+                        symbol: 'none',
+                        lineStyle: { width: 2 },
+                        data: data.hs300_vol,
+                        itemStyle: { color: '#ef4444' }
+                    },
+                    {
+                        name: '中证1000波动率',
+                        type: 'line',
+                        smooth: false,
+                        symbol: 'none',
+                        lineStyle: { width: 2 },
+                        data: data.zz1000_vol,
+                        itemStyle: { color: '#16a34a' }
+                    }
+                ]
+            });
+        }
+                
         init();
     </script>
 </body>
