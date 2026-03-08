@@ -160,57 +160,60 @@
 
     <script>
         const RAW_DATA = {{INDUSTRY_DATA}};
-        const ALL_DATES = RAW_DATA.dates; 
+        const ALL_DATES = RAW_DATA.dates;
+        const PERIOD_MENU = [
+            { id: 'daily', label: '日度', type: 'calendar' },
+            { id: 'weekly', label: '周度', type: 'calendar' },
+            { id: 'monthly', label: '月度', type: 'calendar' },
+            { id: 'quarterly', label: '季度', type: 'calendar' },
+            { id: 'yearly', label: '年度(年初至今)', type: 'calendar' },
+            { id: 'rolling_5', label: '近5个交易日', days: 5, type: 'rolling' },
+            { id: 'rolling_10', label: '近10个交易日', days: 10, type: 'rolling' },
+            { id: 'rolling_20', label: '近20个交易日', days: 20, type: 'rolling' },
+            { id: 'rolling_60', label: '近60个交易日', days: 60, type: 'rolling' },
+            { id: 'rolling_120', label: '近120个交易日', days: 120, type: 'rolling' },
+            { id: 'rolling_250', label: '近250个交易日', days: 250, type: 'rolling' }
+        ];
+        let CURRENT_MODE = 'daily';
 
         $(document).ready(function() {
             renderSidebar();
             if (ALL_DATES.length > 0) {
-                const btn = document.getElementById('preset-5d');
-                if(btn) btn.click();
-                else {
-                    const last = ALL_DATES[ALL_DATES.length-1];
-                    renderReportTables(last, last);
-                }
+                const last = ALL_DATES[ALL_DATES.length - 1];
+                document.getElementById('end-date').value = last;
+                const btn = document.getElementById('menu-daily');
+                if (btn) btn.click();
             }
         });
 
         // === 1. 渲染侧边栏 ===
         function renderSidebar() {
             const container = document.getElementById('nav-container');
-            const revDates = [...ALL_DATES].reverse();
-            let html = `<div class="nav-group-title">快捷视图</div>
-                        <div class="nav-item" id="preset-5d" onclick="setPreset(this, 5)"><span>最近 5 个交易日</span><span>📊</span></div>
-                        <div class="nav-item" id="preset-10d" onclick="setPreset(this, 10)"><span>最近 10 个交易日</span><span>📊</span></div>
-                        <div class="nav-item" id="preset-20d" onclick="setPreset(this, 20)"><span>最近 20 个交易日</span><span>📊</span></div>
-                        <div class="nav-group-title" style="margin-top:15px;">历史单日详情</div>`;
-            revDates.forEach(date => {
-                html += `<div class="nav-item" onclick="setSingleDate(this, '${date}')"><span>${date}</span></div>`;
+            let html = `<div class="nav-group-title">行情透视概览 · 日历维度</div>`;
+            PERIOD_MENU.filter(m => m.type === 'calendar').forEach(menu => {
+                html += `<div class="nav-item" id="menu-${menu.id}" onclick="setPeriodMode(this, '${menu.id}')"><span>${menu.label}</span><span>📊</span></div>`;
+            });
+            html += `<div class="nav-group-title" style="margin-top:15px;">行情透视概览 · 滚动窗口</div>`;
+            PERIOD_MENU.filter(m => m.type === 'rolling').forEach(menu => {
+                html += `<div class="nav-item" id="menu-${menu.id}" onclick="setPeriodMode(this, '${menu.id}')"><span>${menu.label}</span><span>📊</span></div>`;
             });
             container.innerHTML = html;
         }
 
         // === 2. 交互逻辑 ===
-        function setPreset(el, days) {
+        function setPeriodMode(el, modeId) {
+            CURRENT_MODE = modeId;
             updateNavActive(el);
-            const end = ALL_DATES[ALL_DATES.length-1];
-            const start = ALL_DATES[Math.max(0, ALL_DATES.length - days)];
-            document.getElementById('start-date').value = start;
-            document.getElementById('end-date').value = end;
-            renderReportTables(start, end);
-        }
-
-        function setSingleDate(el, dateStr) {
-            updateNavActive(el);
-            document.getElementById('start-date').value = dateStr;
-            document.getElementById('end-date').value = dateStr;
-            renderReportTables(dateStr, dateStr);
+            runCurrentMode();
         }
 
         function manualRun() {
-            document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
-            const s = document.getElementById('start-date').value;
-            const e = document.getElementById('end-date').value;
-            renderReportTables(s, e);
+            runCurrentMode();
+        }
+
+        function runCurrentMode() {
+            const endDate = document.getElementById('end-date').value || ALL_DATES[ALL_DATES.length - 1];
+            renderPeriodOverview(CURRENT_MODE, endDate);
         }
 
         function updateNavActive(el) {
@@ -219,29 +222,81 @@
         }
 
         // === 3. 渲染报表 ===
-        function renderReportTables(startDate, endDate) {
+        function renderPeriodOverview(modeId, endDate) {
             const container = document.getElementById('report-container');
             container.innerHTML = '';
-            
-            const sIdx = ALL_DATES.indexOf(startDate);
-            let eIdx = ALL_DATES.indexOf(endDate);
-            
-            if (sIdx === -1 || eIdx === -1 || sIdx > eIdx) {
+
+            const eIdx = ALL_DATES.indexOf(endDate);
+            if (eIdx === -1) {
                 document.getElementById('status-bar').innerText = "无效的日期范围";
                 return;
             }
 
-            const count = eIdx - sIdx + 1;
-            document.getElementById('status-bar').innerText = `显示 ${count} 个交易日`;
-
-            for (let i = eIdx; i >= sIdx; i--) {
-                const dateStr = ALL_DATES[i];
-                createDaySection(container, dateStr, i);
+            const range = getRangeByMode(modeId, eIdx);
+            if (!range) {
+                document.getElementById('status-bar').innerText = "无法计算该周期";
+                return;
             }
+
+            const { startIdx, endIdx, label } = range;
+            const startDate = ALL_DATES[startIdx];
+            const endDateStr = ALL_DATES[endIdx];
+            document.getElementById('start-date').value = startDate;
+            document.getElementById('end-date').value = endDateStr;
+
+            const count = endIdx - startIdx + 1;
+            document.getElementById('status-bar').innerText = `${label} | ${startDate} → ${endDateStr} (${count}个交易日)`;
+            createPeriodSection(container, label, startIdx, endIdx, startDate, endDateStr);
         }
 
-        function createDaySection(container, dateStr, dayIndex) {
-            let rows = calculateDayData(dayIndex);
+        function getRangeByMode(modeId, endIdx) {
+            const endDate = new Date(ALL_DATES[endIdx]);
+            const menu = PERIOD_MENU.find(m => m.id === modeId);
+            if (!menu) return null;
+
+            if (menu.type === 'rolling') {
+                const startIdx = Math.max(0, endIdx - menu.days + 1);
+                return { startIdx, endIdx, label: menu.label };
+            }
+
+            let startIdx = endIdx;
+            const endYear = endDate.getFullYear();
+            const endMonth = endDate.getMonth();
+            const endQuarter = Math.floor(endMonth / 3);
+            for (let i = endIdx; i >= 0; i--) {
+                const d = new Date(ALL_DATES[i]);
+                if (modeId === 'daily') {
+                    startIdx = endIdx;
+                    break;
+                }
+                if (modeId === 'weekly') {
+                    if (getWeekKey(d) !== getWeekKey(endDate)) break;
+                }
+                if (modeId === 'monthly') {
+                    if (d.getFullYear() !== endYear || d.getMonth() !== endMonth) break;
+                }
+                if (modeId === 'quarterly') {
+                    if (d.getFullYear() !== endYear || Math.floor(d.getMonth() / 3) !== endQuarter) break;
+                }
+                if (modeId === 'yearly') {
+                    if (d.getFullYear() !== endYear) break;
+                }
+                startIdx = i;
+            }
+            return { startIdx, endIdx, label: menu.label };
+        }
+
+        function getWeekKey(dateObj) {
+            const temp = new Date(dateObj.getTime());
+            temp.setHours(0, 0, 0, 0);
+            temp.setDate(temp.getDate() + 3 - (temp.getDay() + 6) % 7);
+            const week1 = new Date(temp.getFullYear(), 0, 4);
+            const weekNo = 1 + Math.round(((temp - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+            return `${temp.getFullYear()}-${weekNo}`;
+        }
+
+        function createPeriodSection(container, periodLabel, startIdx, endIdx, startDate, endDate) {
+            let rows = calculatePeriodData(startIdx, endIdx);
             
             // 排序: 默认按中位数涨幅降序
             rows.sort((a,b) => b.medianPct - a.medianPct);
@@ -260,11 +315,11 @@
 
             const card = document.createElement('div');
             card.className = 'day-card';
-            const tableId = `tbl-${dayIndex}`;
+            const tableId = `tbl-${startIdx}-${endIdx}`;
 
             card.innerHTML = `
                 <div class="day-header">
-                    <span>📅 ${dateStr} 行情概览</span>
+                    <span>📅 ${periodLabel} 行情概览 (${startDate} → ${endDate})</span>
                     <span style="font-size:12px; font-weight:normal; opacity:0.7">
                         ${isFocus ? `Top/Bot ${focusCount}` : '全行业'} | 
                         ${isHot ? `市值>${hotMv}亿 & 个股>${hotVal}亿` : '全量展示'}
@@ -276,11 +331,12 @@
                             <th title="申万三级行业">申万三级</th>
                             <th title="该行业总家数">家数</th>
                             <th title="该行业总市值">总市值(亿)</th>
-                            <th title="该行业今日总成交额">总成交(亿)</th>
+                            <th title="该行业该周期总成交额">总成交(亿)</th>
+                            <th title="该行业总成交额占市场总成交额比例">总成交占比</th>
                             <th title="上涨个股数量比例">上涨家数比</th>
                             <th title="上涨个股市值比例">上涨市值比</th>
-                            <th title="个股涨跌幅平均数">均涨幅</th>
-                            <th title="个股涨跌幅中位数">中位涨幅</th>
+                            <th title="个股区间涨跌幅平均数">均涨幅</th>
+                            <th title="个股区间涨跌幅中位数">中位涨幅</th>
                             <th title="所属一级行业">申万一级</th>
                             <th title="所属二级行业">申万二级</th>
                             <th title="个股陈列">个股陈列</th>
@@ -293,7 +349,7 @@
 
             const tableData = rows.map(r => {
                 if (r.isDivider) {
-                    return ["...", "...", "...", "...", "...", "...", "...", "...", "...", "...", "..."];
+                    return ["...", "...", "...", "...", "...", "...", "...", "...", "...", "...", "...", "..."];
                 }
                 return transformRow(r);
             });
@@ -306,9 +362,9 @@
                 searching: true,
                 info: false,
                 columnDefs: [
-                    { className: "dt-center", targets: [0,1,2,3,4,5,6,7,8,9] },
+                    { className: "dt-center", targets: [0,1,2,3,4,5,6,7,8,9,10] },
                     { width: "80px", targets: 0 },
-                    { width: "60px", targets: [1,2,3,4,5] }
+                    { width: "60px", targets: [1,2,3,4,5,6] }
                 ],
                 createdRow: function(row, data, dataIndex) {
                     if (data[0] === "...") {
@@ -319,19 +375,21 @@
         }
 
         // === 4. 计算引擎 ===
-        function calculateDayData(dayIndex) {
+        function calculatePeriodData(startIdx, endIdx) {
             const isHotMode = document.getElementById('check-hot').checked;
             const stockThreshold = parseFloat(document.getElementById('hot-val').value) || 15;
             const mvThreshold = parseFloat(document.getElementById('hot-mv').value) || 1000;
             
             const groups = {}; 
+            let marketTotalAmt = 0;
 
             for (const [code, stock] of Object.entries(RAW_DATA.stocks)) {
                 if (!stock.s3) continue;
-                
-                const pct = (stock.p && stock.p[dayIndex] !== undefined) ? stock.p[dayIndex] : 0;
-                const amt = (stock.a && stock.a[dayIndex] !== undefined) ? stock.a[dayIndex] : 0;
+
+                const periodPct = calcPeriodPct(stock.p || [], startIdx, endIdx);
+                const periodAmt = calcPeriodAmt(stock.a || [], startIdx, endIdx);
                 const sw3 = stock.s3;
+                marketTotalAmt += periodAmt;
 
                 if (!groups[sw3]) {
                     groups[sw3] = { 
@@ -344,18 +402,18 @@
                 
                 g.count++;
                 g.totalMv += stock.mv;
-                g.totalAmt += amt;
-                g.p_sum += pct;
-                g.p_arr.push(pct);
-                if (pct > 0) {
+                g.totalAmt += periodAmt;
+                g.p_sum += periodPct;
+                g.p_arr.push(periodPct);
+                if (periodPct > 0) {
                     g.upCount++;
                     g.upMv += stock.mv;
                 }
                 
                 if (isHotMode) {
-                    if (amt >= stockThreshold) g.list.push({ n: stock.n, p: pct, a: amt });
+                    if (periodAmt >= stockThreshold) g.list.push({ n: stock.n, p: periodPct, a: periodAmt });
                 } else {
-                    g.list.push({ n: stock.n, p: pct, a: amt });
+                    g.list.push({ n: stock.n, p: periodPct, a: periodAmt });
                 }
             }
 
@@ -381,6 +439,7 @@
                     count: g.count, 
                     totalMv: g.totalMv, 
                     totalAmt: g.totalAmt,
+                    totalAmtRatio: marketTotalAmt > 0 ? g.totalAmt / marketTotalAmt * 100 : 0,
                     upRatio: upRatio,
                     upMvRatio: upMvRatio,
                     avgPct: avg,
@@ -388,6 +447,23 @@
                     list: g.list
                 };
             });
+        }
+
+        function calcPeriodAmt(amtSeries, startIdx, endIdx) {
+            let sum = 0;
+            for (let i = startIdx; i <= endIdx; i++) {
+                sum += (amtSeries[i] || 0);
+            }
+            return sum;
+        }
+
+        function calcPeriodPct(pctSeries, startIdx, endIdx) {
+            let nav = 1;
+            for (let i = startIdx; i <= endIdx; i++) {
+                const p = pctSeries[i] || 0;
+                nav *= (1 + p / 100);
+            }
+            return (nav - 1) * 100;
         }
 
         function transformRow(d) {
@@ -402,6 +478,7 @@
                 d.count,
                 d.totalMv.toFixed(0), 
                 (d.totalAmt).toFixed(1),
+                d.totalAmtRatio.toFixed(2) + '%',
                 d.upRatio.toFixed(1) + '%',
                 d.upMvRatio.toFixed(1) + '%',
                 `<span class="${d.avgPct>0?'val-up':(d.avgPct<0?'val-down':'val-neu')}">${d.avgPct.toFixed(2)}%</span>`,
