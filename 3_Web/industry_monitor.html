@@ -191,7 +191,7 @@
             const container = document.getElementById('nav-container');
             let html = `<div class="nav-group-title">行情透视概览 · 日历维度</div>`;
             PERIOD_MENU.filter(m => m.type === 'calendar').forEach(menu => {
-                html += `<div class="nav-item" id="menu-${menu.id}" onclick="setPeriodMode(this, '${menu.id}')"><span>${menu.label}</span><span>📊</span></div>`;
+                html += `<div class="nav-item" id="menu-${menu.id}" onclick="setPeriodMode(this, '${menu.id}')" ondblclick="openDetailPage('${menu.id}')"><span>${menu.label}</span><span>📊</span></div>`;
             });
             html += `<div class="nav-group-title" style="margin-top:15px;">行情透视概览 · 滚动窗口</div>`;
             PERIOD_MENU.filter(m => m.type === 'rolling').forEach(menu => {
@@ -219,6 +219,12 @@
         function updateNavActive(el) {
             document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
             el.classList.add('active');
+        }
+
+        function openDetailPage(modeId) {
+            const endDate = document.getElementById('end-date').value || ALL_DATES[ALL_DATES.length - 1] || '';
+            const url = `industry_period_detail.html?mode=${encodeURIComponent(modeId)}&end=${encodeURIComponent(endDate)}`;
+            window.location.href = url;
         }
 
         // === 3. 渲染报表 ===
@@ -331,7 +337,7 @@
                             <th title="申万三级行业">申万三级</th>
                             <th title="该行业总家数">家数</th>
                             <th title="该行业总市值">总市值(亿)</th>
-                            <th title="该行业该周期总成交额">总成交(亿)</th>
+                            <th title="该行业该周期日均成交额">日均成交(亿)</th>
                             <th title="该行业总成交额占市场总成交额比例">总成交占比</th>
                             <th title="上涨个股数量比例">上涨家数比</th>
                             <th title="上涨个股市值比例">上涨市值比</th>
@@ -387,9 +393,9 @@
                 if (!stock.s3) continue;
 
                 const periodPct = calcPeriodPct(stock.p || [], startIdx, endIdx);
-                const periodAmt = calcPeriodAmt(stock.a || [], startIdx, endIdx);
+                const avgPeriodAmt = calcPeriodAmt(stock.a || [], startIdx, endIdx);
                 const sw3 = stock.s3;
-                marketTotalAmt += periodAmt;
+                marketTotalAmt += avgPeriodAmt;
 
                 if (!groups[sw3]) {
                     groups[sw3] = { 
@@ -402,7 +408,7 @@
                 
                 g.count++;
                 g.totalMv += stock.mv;
-                g.totalAmt += periodAmt;
+                g.totalAmt += avgPeriodAmt;
                 g.p_sum += periodPct;
                 g.p_arr.push(periodPct);
                 if (periodPct > 0) {
@@ -411,9 +417,9 @@
                 }
                 
                 if (isHotMode) {
-                    if (periodAmt >= stockThreshold) g.list.push({ n: stock.n, p: periodPct, a: periodAmt });
+                    if (avgPeriodAmt >= stockThreshold) g.list.push({ n: stock.n, p: periodPct, a: avgPeriodAmt });
                 } else {
-                    g.list.push({ n: stock.n, p: periodPct, a: periodAmt });
+                    g.list.push({ n: stock.n, p: periodPct, a: avgPeriodAmt });
                 }
             }
 
@@ -454,7 +460,8 @@
             for (let i = startIdx; i <= endIdx; i++) {
                 sum += (amtSeries[i] || 0);
             }
-            return sum;
+            const days = Math.max(1, endIdx - startIdx + 1);
+            return sum / days;
         }
 
         function calcPeriodPct(pctSeries, startIdx, endIdx) {
@@ -469,7 +476,7 @@
         function transformRow(d) {
             const stockStr = d.list.map(s => {
                 const c = s.p > 0 ? 'up' : (s.p < 0 ? 'down' : '');
-                const title = `成交额: ${(s.a).toFixed(1)}亿`;
+                const title = `日均成交额: ${(s.a).toFixed(1)}亿`;
                 return `<span class="stock-pill ${c}" title="${title}">${s.n} ${s.p.toFixed(1)}%</span>`;
             }).join(' ');
 

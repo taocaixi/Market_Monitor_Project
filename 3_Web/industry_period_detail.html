@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行业历史周期详情</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --border: rgba(255,255,255,0.1);
+            --green: #22c55e;
+            --red: #ef4444;
+        }
+        body { margin: 0; background: var(--bg-dark); color: var(--text); font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+        .layout { display: flex; height: 100vh; }
+        .left { width: 260px; border-right: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
+        .head { padding: 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
+        .period-list { flex: 1; overflow-y: auto; }
+        .period-item { padding: 10px 14px; border-left: 3px solid transparent; color: var(--muted); cursor: pointer; }
+        .period-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .period-item.active { border-left-color: var(--accent); background: #263345; color: #fff; }
+        .back { margin-top: auto; padding: 14px; border-top: 1px solid var(--border); }
+        .back a { color: var(--muted); text-decoration: none; font-size: 13px; }
+        .right { flex: 1; padding: 18px; overflow: auto; }
+        .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .sub { color: var(--muted); margin-bottom: 14px; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; font-size: 12px; text-align: center; }
+        th { background: #263345; position: sticky; top: 0; z-index: 1; }
+        td:first-child { text-align: left; font-weight: 600; }
+        .up { color: var(--green); }
+        .down { color: var(--red); }
+        .pill { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 6px; border-radius: 10px; background: rgba(255,255,255,0.06); }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <div class="left">
+        <div class="head" id="period-head">周期列表</div>
+        <div class="period-list" id="period-list"></div>
+        <div class="back"><a href="industry_monitor.html">← 返回行业透视</a></div>
+    </div>
+    <div class="right">
+        <div class="title" id="page-title"></div>
+        <div class="sub" id="page-sub"></div>
+        <div id="table-wrap"></div>
+    </div>
+</div>
+
+<script>
+    const RAW_DATA = {{INDUSTRY_DATA}};
+    const ALL_DATES = RAW_DATA.dates || [];
+    const PERIOD_LABEL = { daily: '日度', weekly: '周度', monthly: '月度', quarterly: '季度', yearly: '年度(年初至今)' };
+    const params = new URLSearchParams(window.location.search);
+    const MODE = params.get('mode') || 'daily';
+    const END_DATE = params.get('end') || ALL_DATES[ALL_DATES.length - 1];
+    const STOCK_THRESHOLD = 15;
+    const MV_THRESHOLD = 1000;
+
+    let PERIODS = [];
+
+    function init() {
+        const endIdx = ALL_DATES.indexOf(END_DATE);
+        const validEndIdx = endIdx >= 0 ? endIdx : ALL_DATES.length - 1;
+        PERIODS = buildPeriods(MODE, validEndIdx).reverse();
+        document.getElementById('period-head').innerText = `${PERIOD_LABEL[MODE] || MODE}时期`;
+        document.getElementById('page-title').innerText = `${PERIOD_LABEL[MODE] || MODE}历史详情`;
+        renderPeriodList();
+        if (PERIODS.length > 0) renderPeriodTable(0);
+    }
+
+    function renderPeriodList() {
+        const box = document.getElementById('period-list');
+        box.innerHTML = PERIODS.map((p, i) => `<div class="period-item ${i===0?'active':''}" onclick="renderPeriodTable(${i}, this)">${p.label}</div>`).join('');
+    }
+
+    function renderPeriodTable(idx, el) {
+        if (el) {
+            document.querySelectorAll('.period-item').forEach(x => x.classList.remove('active'));
+            el.classList.add('active');
+        }
+        const p = PERIODS[idx];
+        const rows = calculatePeriodData(p.startIdx, p.endIdx);
+        document.getElementById('page-sub').innerText = `${ALL_DATES[p.startIdx]} → ${ALL_DATES[p.endIdx]} | 默认筛选: 个股日均成交额≥${STOCK_THRESHOLD}亿、行业总市值≥${MV_THRESHOLD}亿`;
+
+        let html = `<table><thead><tr>
+            <th>申万三级</th><th>家数</th><th>总市值(亿)</th><th>日均成交(亿)</th><th>日均成交占比</th>
+            <th>上涨家数比</th><th>上涨市值比</th><th>均涨幅</th><th>中位涨幅</th><th>申万一级</th><th>申万二级</th><th>个股陈列</th>
+        </tr></thead><tbody>`;
+
+        rows.forEach(d => {
+            const clsAvg = d.avgPct > 0 ? 'up' : (d.avgPct < 0 ? 'down' : '');
+            const clsMid = d.medianPct > 0 ? 'up' : (d.medianPct < 0 ? 'down' : '');
+            const stockStr = d.list.map(s => {
+                const c = s.p > 0 ? 'up' : (s.p < 0 ? 'down' : '');
+                return `<span class="pill ${c}" title="日均成交额:${s.a.toFixed(1)}亿">${s.n} ${s.p.toFixed(1)}%</span>`;
+            }).join('');
+            html += `<tr>
+                <td>${d.name}</td><td>${d.count}</td><td>${d.totalMv.toFixed(0)}</td><td>${d.totalAmt.toFixed(1)}</td><td>${d.totalAmtRatio.toFixed(2)}%</td>
+                <td>${d.upRatio.toFixed(1)}%</td><td>${d.upMvRatio.toFixed(1)}%</td><td class="${clsAvg}">${d.avgPct.toFixed(2)}%</td>
+                <td class="${clsMid}">${d.medianPct.toFixed(2)}%</td><td>${d.sw1}</td><td>${d.sw2}</td><td style="text-align:left">${stockStr}</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('table-wrap').innerHTML = html;
+    }
+
+    function buildPeriods(modeId, endIdx) {
+        const periods = [];
+        const mark = new Set();
+        for (let i = 0; i <= endIdx; i++) {
+            const range = getRangeByMode(modeId, i);
+            const key = `${range.startIdx}-${range.endIdx}`;
+            if (mark.has(key)) continue;
+            mark.add(key);
+            periods.push(range);
+        }
+        return periods;
+    }
+
+    function getRangeByMode(modeId, endIdx) {
+        const endDate = new Date(ALL_DATES[endIdx]);
+        let startIdx = endIdx;
+        const endYear = endDate.getFullYear();
+        const endMonth = endDate.getMonth();
+        const endQuarter = Math.floor(endMonth / 3);
+
+        for (let i = endIdx; i >= 0; i--) {
+            const d = new Date(ALL_DATES[i]);
+            if (modeId === 'daily') { startIdx = endIdx; break; }
+            if (modeId === 'weekly' && getWeekKey(d) !== getWeekKey(endDate)) break;
+            if (modeId === 'monthly' && (d.getFullYear() !== endYear || d.getMonth() !== endMonth)) break;
+            if (modeId === 'quarterly' && (d.getFullYear() !== endYear || Math.floor(d.getMonth()/3) !== endQuarter)) break;
+            if (modeId === 'yearly' && d.getFullYear() !== endYear) break;
+            startIdx = i;
+        }
+
+        return { startIdx, endIdx, label: formatPeriodLabel(modeId, startIdx, endIdx) };
+    }
+
+    function formatPeriodLabel(modeId, startIdx, endIdx) {
+        const s = ALL_DATES[startIdx], e = ALL_DATES[endIdx];
+        if (modeId === 'daily') return e;
+        if (modeId === 'weekly') return `第${getWeekKey(new Date(e)).split('-')[1]}周 (${s}~${e})`;
+        if (modeId === 'monthly') return `${e.substring(0,7)} (${s}~${e})`;
+        if (modeId === 'quarterly') {
+            const d = new Date(e); const q = Math.floor(d.getMonth()/3)+1;
+            return `${d.getFullYear()}Q${q} (${s}~${e})`;
+        }
+        if (modeId === 'yearly') return `${e.substring(0,4)}年 (${s}~${e})`;
+        return `${s}~${e}`;
+    }
+
+    function getWeekKey(dateObj) {
+        const temp = new Date(dateObj.getTime());
+        temp.setHours(0,0,0,0);
+        temp.setDate(temp.getDate() + 3 - (temp.getDay() + 6) % 7);
+        const week1 = new Date(temp.getFullYear(), 0, 4);
+        const weekNo = 1 + Math.round(((temp - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+        return `${temp.getFullYear()}-${weekNo}`;
+    }
+
+    function calculatePeriodData(startIdx, endIdx) {
+        const groups = {};
+        let marketTotalAmt = 0;
+
+        for (const stock of Object.values(RAW_DATA.stocks)) {
+            if (!stock.s3) continue;
+            const periodPct = calcPeriodPct(stock.p || [], startIdx, endIdx);
+            const avgPeriodAmt = calcPeriodAmt(stock.a || [], startIdx, endIdx);
+            marketTotalAmt += avgPeriodAmt;
+
+            if (!groups[stock.s3]) {
+                groups[stock.s3] = { name: stock.s3, sw1: stock.s1, sw2: stock.s2, count:0, totalMv:0, totalAmt:0, upCount:0, upMv:0, p_sum:0, p_arr:[], list:[] };
+            }
+            const g = groups[stock.s3];
+            g.count++; g.totalMv += stock.mv; g.totalAmt += avgPeriodAmt; g.p_sum += periodPct; g.p_arr.push(periodPct);
+            if (periodPct > 0) { g.upCount++; g.upMv += stock.mv; }
+            if (avgPeriodAmt >= STOCK_THRESHOLD) g.list.push({ n: stock.n, p: periodPct, a: avgPeriodAmt });
+        }
+
+        return Object.values(groups)
+            .filter(g => g.totalMv >= MV_THRESHOLD)
+            .map(g => {
+                const avg = g.p_sum / g.count;
+                g.p_arr.sort((a,b)=>a-b);
+                const mid = Math.floor(g.count/2);
+                const median = g.count % 2 ? g.p_arr[mid] : (g.p_arr[mid-1] + g.p_arr[mid]) / 2;
+                const upRatio = g.upCount / g.count * 100;
+                const upMvRatio = g.totalMv > 0 ? (g.upMv / g.totalMv * 100) : 0;
+                g.list.sort((a,b)=>b.a-a.a);
+                return {
+                    name: g.name, sw1: g.sw1, sw2: g.sw2, count: g.count, totalMv: g.totalMv,
+                    totalAmt: g.totalAmt, totalAmtRatio: marketTotalAmt > 0 ? g.totalAmt / marketTotalAmt * 100 : 0,
+                    upRatio, upMvRatio, avgPct: avg, medianPct: median, list: g.list
+                };
+            })
+            .sort((a,b)=>b.medianPct-a.medianPct);
+    }
+
+    function calcPeriodAmt(amtSeries, startIdx, endIdx) {
+        let sum = 0;
+        for (let i = startIdx; i <= endIdx; i++) sum += (amtSeries[i] || 0);
+        const days = Math.max(1, endIdx - startIdx + 1);
+        return sum / days;
+    }
+
+    function calcPeriodPct(pctSeries, startIdx, endIdx) {
+        let nav = 1;
+        for (let i = startIdx; i <= endIdx; i++) nav *= (1 + (pctSeries[i] || 0) / 100);
+        return (nav - 1) * 100;
+    }
+
+    init();
+</script>
+</body>
+</html>
