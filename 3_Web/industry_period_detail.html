@@ -66,7 +66,7 @@
     function init() {
         const endIdx = ALL_DATES.indexOf(END_DATE);
         const validEndIdx = endIdx >= 0 ? endIdx : ALL_DATES.length - 1;
-        PERIODS = buildPeriods(MODE, validEndIdx).reverse();
+        PERIODS = buildPeriods(MODE, validEndIdx);
         document.getElementById('period-head').innerText = `${PERIOD_LABEL[MODE] || MODE}时期`;
         document.getElementById('page-title').innerText = `${PERIOD_LABEL[MODE] || MODE}历史详情`;
         renderPeriodList();
@@ -111,13 +111,13 @@
 
     function buildPeriods(modeId, endIdx) {
         const periods = [];
-        const mark = new Set();
-        for (let i = 0; i <= endIdx; i++) {
-            const range = getRangeByMode(modeId, i);
-            const key = `${range.startIdx}-${range.endIdx}`;
-            if (mark.has(key)) continue;
-            mark.add(key);
+        let cursor = endIdx;
+        while (cursor >= 0) {
+            const range = getRangeByMode(modeId, cursor);
+            range.isCurrent = cursor === endIdx;
+            range.label = formatPeriodLabel(modeId, range.startIdx, range.endIdx, range.isCurrent);
             periods.push(range);
+            cursor = range.startIdx - 1;
         }
         return periods;
     }
@@ -139,19 +139,26 @@
             startIdx = i;
         }
 
-        return { startIdx, endIdx, label: formatPeriodLabel(modeId, startIdx, endIdx) };
+        return { startIdx, endIdx };
     }
 
-    function formatPeriodLabel(modeId, startIdx, endIdx) {
+    function formatPeriodLabel(modeId, startIdx, endIdx, isCurrent) {
         const s = ALL_DATES[startIdx], e = ALL_DATES[endIdx];
         if (modeId === 'daily') return e;
-        if (modeId === 'weekly') return `第${getWeekKey(new Date(e)).split('-')[1]}周 (${s}~${e})`;
-        if (modeId === 'monthly') return `${e.substring(0,7)} (${s}~${e})`;
+        if (modeId === 'weekly') {
+            const weekNo = getWeekKey(new Date(e)).split('-')[1];
+            return `${isCurrent ? '本周' : `第${weekNo}周`} (${s}~${e})`;
+        }
+        if (modeId === 'monthly') {
+            return `${isCurrent ? '本月' : e.substring(0,7)} (${s}~${e})`;
+        }
         if (modeId === 'quarterly') {
             const d = new Date(e); const q = Math.floor(d.getMonth()/3)+1;
-            return `${d.getFullYear()}Q${q} (${s}~${e})`;
+            return `${isCurrent ? '本季度' : `${d.getFullYear()}Q${q}`} (${s}~${e})`;
         }
-        if (modeId === 'yearly') return `${e.substring(0,4)}年 (${s}~${e})`;
+        if (modeId === 'yearly') {
+            return `${isCurrent ? '本年' : `${e.substring(0,4)}年`} (${s}~${e})`;
+        }
         return `${s}~${e}`;
     }
 
