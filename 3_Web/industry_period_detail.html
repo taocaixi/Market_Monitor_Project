@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>行业历史周期详情</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         :root {
             --bg-dark: #0f172a;
@@ -25,15 +28,23 @@
         .period-item.active { border-left-color: var(--accent); background: #263345; color: #fff; }
         .back { margin-top: auto; padding: 14px; border-top: 1px solid var(--border); }
         .back a { color: var(--muted); text-decoration: none; font-size: 13px; }
-        .right { flex: 1; padding: 18px; overflow: auto; }
+        .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .right-head { padding: 18px 18px 0; }
+        .toolbar { margin: 0 18px 0; background: var(--panel); padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .ctrl-item { display: flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 13px; }
+        .num-input { background: #0f172a; border: 1px solid var(--border); color: var(--accent); width: 55px; padding: 2px 4px; border-radius: 4px; outline: none; }
+        .num-select { background: #0f172a; border: 1px solid var(--border); color: var(--accent); border-radius: 4px; padding: 1px 4px; }
+        .table-scroll { flex: 1; overflow: auto; padding: 14px 18px 18px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
         .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-        .sub { color: var(--muted); margin-bottom: 14px; font-size: 13px; }
-        table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-        th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; font-size: 12px; text-align: center; }
-        th { background: #263345; position: sticky; top: 0; z-index: 1; }
-        td:first-child { text-align: left; font-weight: 600; }
-        .up { color: var(--green); }
-        .down { color: var(--red); }
+        .sub { color: var(--muted); margin-bottom: 10px; font-size: 13px; }
+        table.dataTable { width: 100% !important; border-collapse: collapse !important; font-size: 12px; color: #cbd5e1; }
+        table.dataTable thead th { background: #263345 !important; color: #fff; border-bottom: 1px solid var(--border) !important; text-align: center !important; white-space: nowrap; }
+        table.dataTable tbody tr { background: #1e293b; }
+        table.dataTable tbody tr:hover { background: #243244; }
+        .val-up { color: var(--red); font-weight: 600; }
+        .val-down { color: var(--green); font-weight: 600; }
+        .val-neu { color: #cbd5e1; }
         .pill { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 6px; border-radius: 10px; background: rgba(255,255,255,0.06); }
     </style>
 </head>
@@ -45,9 +56,27 @@
         <div class="back"><a href="industry_monitor.html">← 返回行业透视</a></div>
     </div>
     <div class="right">
-        <div class="title" id="page-title"></div>
-        <div class="sub" id="page-sub"></div>
-        <div id="table-wrap"></div>
+        <div class="right-head">
+            <div class="title" id="page-title"></div>
+            <div class="sub" id="page-sub"></div>
+        </div>
+        <div class="toolbar">
+            <label class="ctrl-item" title="条件：行业总市值>X亿 且 个股成交额>Y亿">
+                <input type="checkbox" id="check-hot" checked onchange="manualRun()">
+                🔥 热点模式：行业总市值 >
+                <input type="number" id="hot-mv" class="num-input" value="1000" onchange="manualRun()">亿 & 个股成交额 >
+                <input type="number" id="hot-val" class="num-input" value="15" onchange="manualRun()">亿
+            </label>
+            <label class="ctrl-item" title="仅保留涨幅最高和最低的行业">
+                <input type="checkbox" id="check-focus" checked onchange="manualRun()">
+                👁️ 聚焦模式 (Top/Bot
+                <select id="focus-count" class="num-select" onchange="manualRun()">
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                </select>)
+            </label>
+        </div>
+        <div class="table-scroll"><div id="table-wrap"></div></div>
     </div>
 </div>
 
@@ -58,10 +87,8 @@
     const params = new URLSearchParams(window.location.search);
     const MODE = params.get('mode') || 'daily';
     const END_DATE = params.get('end') || ALL_DATES[ALL_DATES.length - 1];
-    const STOCK_THRESHOLD = 15;
-    const MV_THRESHOLD = 1000;
-
     let PERIODS = [];
+    let CURRENT_PERIOD_IDX = 0;
 
     function init() {
         const endIdx = ALL_DATES.indexOf(END_DATE);
@@ -70,43 +97,75 @@
         document.getElementById('period-head').innerText = `${PERIOD_LABEL[MODE] || MODE}时期`;
         document.getElementById('page-title').innerText = `${PERIOD_LABEL[MODE] || MODE}历史详情`;
         renderPeriodList();
-        if (PERIODS.length > 0) renderPeriodTable(0);
+        if (PERIODS.length > 0) renderPeriodTable();
     }
 
     function renderPeriodList() {
         const box = document.getElementById('period-list');
-        box.innerHTML = PERIODS.map((p, i) => `<div class="period-item ${i===0?'active':''}" onclick="renderPeriodTable(${i}, this)">${p.label}</div>`).join('');
+        box.innerHTML = PERIODS.map((p, i) => `<div class="period-item ${i===0?'active':''}" onclick="selectPeriod(${i}, this)">${p.label}</div>`).join('');
     }
 
-    function renderPeriodTable(idx, el) {
+    function selectPeriod(idx, el) {
+        CURRENT_PERIOD_IDX = idx;
         if (el) {
             document.querySelectorAll('.period-item').forEach(x => x.classList.remove('active'));
             el.classList.add('active');
         }
-        const p = PERIODS[idx];
-        const rows = calculatePeriodData(p.startIdx, p.endIdx);
-        document.getElementById('page-sub').innerText = `${ALL_DATES[p.startIdx]} → ${ALL_DATES[p.endIdx]} | 默认筛选: 个股日均成交额≥${STOCK_THRESHOLD}亿、行业总市值≥${MV_THRESHOLD}亿`;
+        renderPeriodTable();
+    }
 
-        let html = `<table><thead><tr>
+    function manualRun() {
+        renderPeriodTable();
+    }
+
+    function renderPeriodTable() {
+        const idx = CURRENT_PERIOD_IDX;
+        const p = PERIODS[idx];
+        if (!p) return;
+        let rows = calculatePeriodData(p.startIdx, p.endIdx);
+
+        rows.sort((a,b) => b.medianPct - a.medianPct);
+        const isFocus = document.getElementById('check-focus').checked;
+        const focusCount = parseInt(document.getElementById('focus-count').value, 10) || 10;
+        const isHot = document.getElementById('check-hot').checked;
+        const stockThreshold = parseFloat(document.getElementById('hot-val').value) || 15;
+        const mvThreshold = parseFloat(document.getElementById('hot-mv').value) || 1000;
+
+        if (isFocus && rows.length > (focusCount * 2)) {
+            const topN = rows.slice(0, focusCount);
+            const botN = rows.slice(rows.length - focusCount);
+            rows = [...topN, { isDivider: true }, ...botN];
+        }
+
+        document.getElementById('page-sub').innerText = `${ALL_DATES[p.startIdx]} → ${ALL_DATES[p.endIdx]} | ${isFocus ? `Top/Bot ${focusCount}` : '全行业'} | ${isHot ? `市值>${mvThreshold}亿 & 个股>${stockThreshold}亿` : '全量展示'}`;
+
+        const tableId = `tbl-${p.startIdx}-${p.endIdx}`;
+        const html = `<div class="card"><table id="${tableId}" class="display nowrap" style="width:100%"><thead><tr>
             <th>申万三级</th><th>家数</th><th>总市值(亿)</th><th>日均成交(亿)</th><th>日均成交占比</th>
             <th>上涨家数比</th><th>上涨市值比</th><th>均涨幅</th><th>中位涨幅</th><th>申万一级</th><th>申万二级</th><th>个股陈列</th>
-        </tr></thead><tbody>`;
-
-        rows.forEach(d => {
-            const clsAvg = d.avgPct > 0 ? 'up' : (d.avgPct < 0 ? 'down' : '');
-            const clsMid = d.medianPct > 0 ? 'up' : (d.medianPct < 0 ? 'down' : '');
-            const stockStr = d.list.map(s => {
-                const c = s.p > 0 ? 'up' : (s.p < 0 ? 'down' : '');
-                return `<span class="pill ${c}" title="日均成交额:${s.a.toFixed(1)}亿">${s.n} ${s.p.toFixed(1)}%</span>`;
-            }).join('');
-            html += `<tr>
-                <td>${d.name}</td><td>${d.count}</td><td>${d.totalMv.toFixed(0)}</td><td>${d.totalAmt.toFixed(1)}</td><td>${d.totalAmtRatio.toFixed(2)}%</td>
-                <td>${d.upRatio.toFixed(1)}%</td><td>${d.upMvRatio.toFixed(1)}%</td><td class="${clsAvg}">${d.avgPct.toFixed(2)}%</td>
-                <td class="${clsMid}">${d.medianPct.toFixed(2)}%</td><td>${d.sw1}</td><td>${d.sw2}</td><td style="text-align:left">${stockStr}</td>
-            </tr>`;
-        });
-        html += '</tbody></table>';
+        </tr></thead><tbody></tbody></table></div>`;
         document.getElementById('table-wrap').innerHTML = html;
+
+        const tableData = rows.map(r => r.isDivider
+            ? ["...", "...", "...", "...", "...", "...", "...", "...", "...", "...", "...", "..."]
+            : transformRow(r)
+        );
+
+        $(`#${tableId}`).DataTable({
+            data: tableData,
+            ordering: !isFocus,
+            paging: false,
+            searching: true,
+            info: false,
+            columnDefs: [
+                { className: 'dt-center', targets: [0,1,2,3,4,5,6,7,8,9,10] }
+            ],
+            createdRow: function(row, data) {
+                if (data[0] === '...') {
+                    row.style.opacity = '0.5';
+                }
+            }
+        });
     }
 
     function buildPeriods(modeId, endIdx) {
@@ -172,6 +231,9 @@
     }
 
     function calculatePeriodData(startIdx, endIdx) {
+        const isHotMode = document.getElementById('check-hot')?.checked;
+        const stockThreshold = parseFloat(document.getElementById('hot-val')?.value) || 15;
+        const mvThreshold = parseFloat(document.getElementById('hot-mv')?.value) || 1000;
         const groups = {};
         let marketTotalAmt = 0;
 
@@ -187,11 +249,11 @@
             const g = groups[stock.s3];
             g.count++; g.totalMv += stock.mv; g.totalAmt += avgPeriodAmt; g.p_sum += periodPct; g.p_arr.push(periodPct);
             if (periodPct > 0) { g.upCount++; g.upMv += stock.mv; }
-            if (avgPeriodAmt >= STOCK_THRESHOLD) g.list.push({ n: stock.n, p: periodPct, a: avgPeriodAmt });
+            if (!isHotMode || avgPeriodAmt >= stockThreshold) g.list.push({ n: stock.n, p: periodPct, a: avgPeriodAmt });
         }
 
         return Object.values(groups)
-            .filter(g => g.totalMv >= MV_THRESHOLD)
+            .filter(g => !isHotMode || g.totalMv >= mvThreshold)
             .map(g => {
                 const avg = g.p_sum / g.count;
                 g.p_arr.sort((a,b)=>a-b);
@@ -207,6 +269,28 @@
                 };
             })
             .sort((a,b)=>b.medianPct-a.medianPct);
+    }
+
+    function transformRow(d) {
+        const stockStr = d.list.map(s => {
+            const c = s.p > 0 ? 'val-up' : (s.p < 0 ? 'val-down' : 'val-neu');
+            return `<span class="pill ${c}" title="日均成交额:${s.a.toFixed(1)}亿">${s.n} ${s.p.toFixed(1)}%</span>`;
+        }).join(' ');
+
+        return [
+            `<span style="font-weight:bold;color:#fff">${d.name}</span>`,
+            d.count,
+            d.totalMv.toFixed(0),
+            d.totalAmt.toFixed(1),
+            `${d.totalAmtRatio.toFixed(2)}%`,
+            `${d.upRatio.toFixed(1)}%`,
+            `${d.upMvRatio.toFixed(1)}%`,
+            `<span class="${d.avgPct > 0 ? 'val-up' : (d.avgPct < 0 ? 'val-down' : 'val-neu')}">${d.avgPct.toFixed(2)}%</span>`,
+            `<span class="${d.medianPct > 0 ? 'val-up' : (d.medianPct < 0 ? 'val-down' : 'val-neu')}">${d.medianPct.toFixed(2)}%</span>`,
+            d.sw1,
+            d.sw2,
+            `<div style="text-align:left;white-space:normal;line-height:1.7">${stockStr}</div>`
+        ];
     }
 
     function calcPeriodAmt(amtSeries, startIdx, endIdx) {
