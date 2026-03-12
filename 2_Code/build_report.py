@@ -6,6 +6,7 @@ import re
 import sys
 import shutil
 import numpy as np
+from build_stock_tracker import process_stock_tracker
 
 # 设置控制台输出编码
 sys.stdout.reconfigure(encoding='utf-8')
@@ -96,8 +97,8 @@ def read_wide_table(path):
 def load_all_common_data():
     """读取所有公共大表"""
     print("=== [Stage 1] Loading Common Data ===")
-
-    data_bundle = {'pct': None, 'amt': None, 'ind': None, 'dates': []}
+    
+    data_bundle = {'pct': None, 'amt': None, 'price': None, 'ind': None, 'dates': []}
 
     # 2. 读取数据
     # Pctchg
@@ -112,6 +113,10 @@ def load_all_common_data():
     path_amt = os.path.join(EXTERNAL_DATA_DIR, FILE_AMT)
     data_bundle['amt'] = read_wide_table(path_amt)
     
+    # Price
+    path_price = os.path.join(EXTERNAL_DATA_DIR, FILE_PRICE)
+    data_bundle['price'] = read_wide_table(path_price)
+
     # Industry (申万) - 增加清洗逻辑
     ind_path = os.path.join(EXTERNAL_DATA_DIR, FILE_IND)
     if os.path.exists(ind_path):
@@ -131,13 +136,15 @@ def load_all_common_data():
             print(f"    [Error] Industry table: {e}")
     
     # 3. 对齐日期
-    if data_bundle['pct'] is not None and data_bundle['amt'] is not None:
-        common = data_bundle['pct'].columns.intersection(data_bundle['amt'].columns)
+
+    if data_bundle['pct'] is not None and data_bundle['amt'] is not None and data_bundle['price'] is not None:
+        common = data_bundle['pct'].columns.intersection(data_bundle['amt'].columns).intersection(data_bundle['price'].columns)
         #if len(common) > 250: common = common[-250:] # 最近250天
         
         data_bundle['dates'] = common
         data_bundle['pct'] = data_bundle['pct'][common]
         data_bundle['amt'] = data_bundle['amt'][common]
+        data_bundle['price'] = data_bundle['price'][common]        
         print(f"  - Common Dates: {len(common)} days")
         
     return data_bundle
@@ -491,6 +498,47 @@ def process_index_data():
         with open(out, 'w', encoding='utf-8') as f: 
             f.write(html.replace('{{INDEX_DATA}}', json.dumps(output, ensure_ascii=False)))
 
+
+def build_portal_page():
+    out = os.path.join(OUTPUT_DIR, 'index.html')
+    html = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Monitor 门户</title>
+  <style>
+    :root { --bg:#0b1220; --card:#111b2e; --border:rgba(148,163,184,.25); --text:#e2e8f0; --sub:#94a3b8; --accent:#3b82f6; }
+    *{box-sizing:border-box} body{margin:0;font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:radial-gradient(circle at top,#17233a,#0b1220 40%);color:var(--text);min-height:100vh}
+    .wrap{max-width:1100px;margin:0 auto;padding:36px 24px}
+    h1{margin:0 0 6px;font-size:30px}.sub{color:var(--sub);margin-bottom:24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+    .card{display:block;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-decoration:none;color:inherit;transition:.2s}
+    .card:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 10px 24px rgba(15,23,42,.35)}
+    .name{font-size:17px;font-weight:700;margin-bottom:8px}.desc{color:var(--sub);font-size:13px;line-height:1.5}
+    .tag{display:inline-block;margin-top:10px;font-size:11px;color:#93c5fd;background:rgba(59,130,246,.15);padding:3px 8px;border-radius:999px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>📈 Market Monitor</h1>
+    <div class="sub">金融市场监控门户</div>
+    <div class="grid">
+      <a class="card" href="market_data.html"><div class="name">🔥 周度热点监控</div><div class="desc">查看周度热点股票监控表格。</div></a>
+      <a class="card" href="market_sentiment.html"><div class="name">🌡️ 市场情绪跟踪</div><div class="desc">涨跌停、市场广度、量价背离等情绪指标。</div></a>
+      <a class="card" href="industry_monitor.html"><div class="name">🏭 行业全景透视</div><div class="desc">行业维度涨跌、成交与轮动。</div></a>
+      <a class="card" href="index_monitor.html"><div class="name">📊 指数量价跟踪</div><div class="desc">宽基与行业指数价格、市盈率、成交额变化。</div></a>
+      <a class="card" href="a_stock_tracker.html"><div class="name">🧾 A股个股跟踪</div><div class="desc">全市场个股多模块指标跟踪，支持搜索、筛选与排序。</div><span class="tag">新增</span></a>
+    </div>
+  </div>
+</body>
+</html>
+"""
+    with open(out, 'w', encoding='utf-8') as f:
+        f.write(html)
+
+
+
 # ================= 主程序入口 =================
 if __name__ == "__main__":
     print("==================================================")
@@ -507,5 +555,9 @@ if __name__ == "__main__":
     
     # 3. 指数模块 (独立IO)
     process_index_data()
+
+    # 4. 个股模块 (独立IO)
+    process_stock_tracker(bundle, WEB_TEMPLATE_DIR, OUTPUT_DIR)
+    build_portal_page()
     
     print("\n=== 全部任务执行完成 ===")
