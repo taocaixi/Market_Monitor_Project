@@ -13,21 +13,22 @@
         .menu{padding:8px}.menu-item{padding:10px 12px;border-radius:6px;background:#1f2937;color:#cbd5e1;font-size:14px}
         .back{margin-top:auto;padding:14px;border-top:1px solid var(--line)} .back a{display:block;text-align:center;color:var(--sub);text-decoration:none;border:1px solid var(--line);padding:8px;border-radius:6px}
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-        .header{padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+        .header{padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
         .title{font-weight:700;margin-right:8px}
-        .ctrl{display:flex;gap:8px;align-items:center;color:var(--sub);font-size:13px}
-        input,button{background:#0b1220;border:1px solid var(--line);color:#cbd5e1;border-radius:6px;padding:6px 8px}
+        .date-info{font-size:12px;color:#93c5fd;margin-right:8px}
+        .ctrl{display:flex;gap:6px;align-items:center;color:var(--sub);font-size:12px}
+        input,button{background:#0b1220;border:1px solid var(--line);color:#cbd5e1;border-radius:6px;padding:5px 7px}
         button{cursor:pointer}
-        .module-panel{display:flex;gap:8px;flex-wrap:wrap;max-width:100%}
-        .check{font-size:12px;background:#0b1220;padding:3px 6px;border:1px solid var(--line);border-radius:999px}
+        .module-panel{display:flex;gap:6px;flex-wrap:wrap;max-width:100%}
+        .check{font-size:11px;background:#0b1220;padding:2px 6px;border:1px solid var(--line);border-radius:999px}
         .table-wrap{flex:1;overflow:auto}
-        table{border-collapse:collapse;min-width:2800px;width:max-content}
+        table{border-collapse:collapse;width:max-content;min-width:2200px}
         thead th{position:sticky;top:0;background:#1e293b;z-index:10}
-        th,td{border-bottom:1px solid rgba(148,163,184,.15);padding:8px 10px;white-space:nowrap;font-size:12px;text-align:right}
+        th,td{border-bottom:1px solid rgba(148,163,184,.15);padding:6px 8px;white-space:nowrap;font-size:12px;text-align:right}
         th{cursor:pointer;color:#cbd5e1} th:hover{background:#273549}
         th:first-child, td:first-child{position:sticky;left:0;z-index:11;background:#111827;text-align:left}
-        th:nth-child(2), td:nth-child(2){position:sticky;left:110px;z-index:11;background:#111827;text-align:left}
-        th:first-child,td:first-child{min-width:110px} th:nth-child(2),td:nth-child(2){min-width:140px}
+        th:nth-child(2), td:nth-child(2){position:sticky;left:95px;z-index:11;background:#111827;text-align:left}
+        th:first-child,td:first-child{min-width:95px} th:nth-child(2),td:nth-child(2){min-width:120px}
         .up{color:var(--up)} .down{color:var(--down)} .sort{color:#93c5fd}
     </style>
 </head>
@@ -40,6 +41,7 @@
     <main class="main">
         <div class="header">
             <div class="title">A股个股跟踪</div>
+            <div class="date-info" id="dateInfo"></div>
             <div class="ctrl">搜索 <input id="search" placeholder="代码 / 名称"></div>
             <div class="ctrl">成交额阈值(亿) > <input id="amountThreshold" type="number" step="0.1" value="15"></div>
             <button onclick="applyFilters()">应用</button>
@@ -51,21 +53,23 @@
 <script>
 const RAW = {{STOCK_TRACKER_DATA}};
 const MODULES = {
-    basic: '基本信息', monthly: '月度价格行为', pct: '涨跌幅', amount: '成交额', drawdown: '最大回撤与回升', ma: '均线', excess: '超额收益'
+    basic: '基本信息', daily: '日度价格行为', pct: '涨跌幅', amount: '成交额', drawdown: '最大回撤与回升', ma: '均线', excess: '超额收益'
 };
 const state = { sortKey: '当日涨跌幅(%)', sortDir: 'desc', search: '', amountThreshold: 15, modules: new Set(Object.keys(MODULES)) };
 
 function toNum(v){ if(v===null||v===undefined||v==='') return null; const n=Number(v); return Number.isFinite(n)?n:null; }
-function format(key, v){ if(v===null||v===undefined||v==='') return '-';
+function format(key, v){
+    if(v===null||v===undefined||v==='') return '-';
+    if(key.includes('_rank')) return String(Math.round(Number(v)));
+    if(key==='当日收盘价') return `${Number(v).toFixed(2)}`;
     if(key.includes('成交额')||key.includes('市值')) return `${Number(v).toFixed(1)}`;
+    if(key.includes('换手率')) return `${Number(v).toFixed(1)}%`;
     if(key.includes('涨跌幅')||key.includes('回撤')||key.includes('回升')||key.includes('斜率')||key.includes('乖离率')||key.includes('振幅')) return `${Number(v).toFixed(1)}%`;
     return v;
 }
 function cls(key,v){ const n=toNum(v); if(n===null) return ''; if(key.includes('涨跌幅')||key.includes('超额')||key.includes('回升')||key.includes('斜率')||key.includes('乖离率')) return n>=0?'up':'down'; return ''; }
 
-function getVisibleColumns(){
-    return RAW.columns.filter(c => state.modules.has(c.module));
-}
+function getVisibleColumns(){ return RAW.columns.filter(c => state.modules.has(c.module)); }
 
 function applyFilters(){
     state.search = document.getElementById('search').value.trim();
@@ -113,6 +117,12 @@ function init(){
         el.innerHTML=`<input type="checkbox" checked onchange="toggleModule('${k}',this.checked)"> ${v}`;
         panel.appendChild(el);
     });
+
+    const meta = RAW.meta || {};
+    if(meta.start_date && meta.end_date && meta.trade_days){
+        document.getElementById('dateInfo').innerText = `数据库区间：${meta.start_date} ~ ${meta.end_date}（${meta.trade_days}个交易日）`;
+    }
+
     render();
 }
 init();

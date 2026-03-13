@@ -557,7 +557,8 @@ if __name__ == "__main__":
     process_index_data()
 
     # 4. 个股模块 (独立IO)
-    process_stock_tracker(bundle, WEB_TEMPLATE_DIR, OUTPUT_DIR)
+    #process_stock_tracker(bundle, WEB_TEMPLATE_DIR, OUTPUT_DIR)
+    process_stock_tracker(bundle, WEB_TEMPLATE_DIR, OUTPUT_DIR, SOURCE_INDEX_RECENT, SOURCE_INDEX_EARLY)
     build_portal_page()
     
     print("\n=== 全部任务执行完成 ===")
