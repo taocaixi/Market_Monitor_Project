@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A股均线模块</title>
+  <style>
+    body{margin:0;background:#0f172a;color:#e2e8f0;font-family:"PingFang SC","Microsoft YaHei",sans-serif;display:flex;height:100vh;overflow:hidden}
+    .sidebar{width:240px;background:#111827;border-right:1px solid rgba(148,163,184,.3);display:flex;flex-direction:column}
+    .brand{padding:16px;font-weight:700;border-bottom:1px solid rgba(148,163,184,.3)}
+    .menu{padding:8px;display:flex;flex-direction:column;gap:8px}.menu-item{padding:10px 12px;border-radius:6px;background:#1f2937;color:#cbd5e1;text-decoration:none}.menu-item.active{border:1px solid #3b82f6}
+    .back{margin-top:auto;padding:14px;border-top:1px solid rgba(148,163,184,.3)} .back a{display:block;text-align:center;color:#94a3b8;text-decoration:none;border:1px solid rgba(148,163,184,.3);padding:8px;border-radius:6px}
+    .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .header{padding:10px 14px;background:#1e293b;border-bottom:1px solid rgba(148,163,184,.3)}
+    .table-wrap{flex:1;overflow:auto;padding:10px}
+    table{border-collapse:collapse;width:max-content;min-width:1200px} th,td{font-size:12px;padding:6px 8px;border-bottom:1px solid rgba(148,163,184,.15);white-space:nowrap;text-align:right}
+    th{position:sticky;top:0;background:#1f2937}
+    th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){position:sticky;left:0;background:#111827;text-align:left}
+    th:nth-child(2),td:nth-child(2){left:95px}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">📐 均线模块</div>
+    <div class="menu">
+      <a class="menu-item" href="a_stock_tracker.html">基础跟踪表</a>
+      <a class="menu-item" href="a_stock_drawdown.html">最大回撤模块</a>
+      <a class="menu-item active" href="a_stock_ma.html">均线模块</a>
+    </div>
+    <div class="back"><a href="index.html">← 返回门户首页</a></div>
+  </aside>
+  <main class="main">
+    <div class="header"><strong>均线乖离率与均线上行斜率</strong></div>
+    <div class="table-wrap" id="wrap"></div>
+  </main>
+<script>
+const RAW={{STOCK_MA_DATA}};
+function render(){
+  let html='<table><thead><tr>';
+  RAW.columns.forEach(c=>html+=`<th>${c.label}</th>`);
+  html+='</tr></thead><tbody>';
+  RAW.rows.forEach(r=>{ html+='<tr>'; RAW.columns.forEach(c=>{ const v=r[c.key]; html += `<td>${typeof v==='number'?v.toFixed(2):v}</td>`; }); html+='</tr>'; });
+  html+='</tbody></table>';
+  document.getElementById('wrap').innerHTML=html;
+}
+render();
+</script>
+</body>
+</html>

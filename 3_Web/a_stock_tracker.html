@@ -1,131 +1,54 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A股个股跟踪</title>
-    <style>
-        :root { --bg:#0f172a; --panel:#1e293b; --text:#e2e8f0; --sub:#94a3b8; --line:rgba(148,163,184,.3); --accent:#3b82f6; --up:#ef4444; --down:#22c55e; }
-        *{box-sizing:border-box}
-        body{margin:0;background:var(--bg);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;overflow:hidden}
-        .sidebar{width:220px;background:#111827;border-right:1px solid var(--line);display:flex;flex-direction:column}
-        .brand{padding:16px;font-weight:700;border-bottom:1px solid var(--line)}
-        .menu{padding:8px}.menu-item{padding:10px 12px;border-radius:6px;background:#1f2937;color:#cbd5e1;font-size:14px}
-        .back{margin-top:auto;padding:14px;border-top:1px solid var(--line)} .back a{display:block;text-align:center;color:var(--sub);text-decoration:none;border:1px solid var(--line);padding:8px;border-radius:6px}
-        .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-        .header{padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-        .title{font-weight:700;margin-right:8px}
-        .date-info{font-size:12px;color:#93c5fd;margin-right:8px}
-        .ctrl{display:flex;gap:6px;align-items:center;color:var(--sub);font-size:12px}
-        input,button{background:#0b1220;border:1px solid var(--line);color:#cbd5e1;border-radius:6px;padding:5px 7px}
-        button{cursor:pointer}
-        .module-panel{display:flex;gap:6px;flex-wrap:wrap;max-width:100%}
-        .check{font-size:11px;background:#0b1220;padding:2px 6px;border:1px solid var(--line);border-radius:999px}
-        .table-wrap{flex:1;overflow:auto}
-        table{border-collapse:collapse;width:max-content;min-width:2200px}
-        thead th{position:sticky;top:0;background:#1e293b;z-index:10}
-        th,td{border-bottom:1px solid rgba(148,163,184,.15);padding:6px 8px;white-space:nowrap;font-size:12px;text-align:right}
-        th{cursor:pointer;color:#cbd5e1} th:hover{background:#273549}
-        th:first-child, td:first-child{position:sticky;left:0;z-index:11;background:#111827;text-align:left}
-        th:nth-child(2), td:nth-child(2){position:sticky;left:95px;z-index:11;background:#111827;text-align:left}
-        th:first-child,td:first-child{min-width:95px} th:nth-child(2),td:nth-child(2){min-width:120px}
-        .up{color:var(--up)} .down{color:var(--down)} .sort{color:#93c5fd}
-    </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>A股个股跟踪</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--text:#e2e8f0;--sub:#94a3b8;--line:rgba(148,163,184,.3);--accent:#3b82f6;--up:#ef4444;--down:#22c55e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;height:100vh;display:flex;overflow:hidden}
+.sidebar{width:240px;background:#111827;border-right:1px solid var(--line);display:flex;flex-direction:column}.brand{padding:16px;font-weight:700;border-bottom:1px solid var(--line)}
+.date-panel{padding:12px}.date-title{font-size:12px;color:#93c5fd;margin-bottom:6px}#tradeDate{width:100%;background:#0b1220;border:1px solid var(--line);color:#cbd5e1;border-radius:6px;padding:6px}
+.back{margin-top:auto;padding:14px;border-top:1px solid var(--line)} .back a{display:block;text-align:center;color:var(--sub);text-decoration:none;border:1px solid var(--line);padding:8px;border-radius:6px}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}.header{padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.title{font-weight:700}.tabs{display:flex;gap:6px}.tab{background:#0b1220;border:1px solid var(--line);color:#cbd5e1;padding:6px 10px;border-radius:6px;cursor:pointer}.tab.active{background:#1d4ed8;border-color:#1d4ed8}
+.ctrl{display:flex;gap:6px;align-items:center;color:var(--sub);font-size:12px}input,button{background:#0b1220;border:1px solid var(--line);color:#cbd5e1;border-radius:6px;padding:5px 7px}button{cursor:pointer}
+.module-panel{display:flex;gap:6px;flex-wrap:wrap}.check{font-size:11px;background:#0b1220;padding:2px 6px;border:1px solid var(--line);border-radius:999px}
+.table-wrap{flex:1;overflow:auto}table{border-collapse:collapse;width:max-content;min-width:1800px}th,td{border-bottom:1px solid rgba(148,163,184,.15);padding:6px 8px;white-space:nowrap;font-size:12px;text-align:right}th{position:sticky;top:0;background:#1e293b;cursor:pointer}
+th:nth-child(1),td:nth-child(1){position:sticky;left:0;z-index:12;background:#111827;text-align:left;min-width:95px}
+th:nth-child(2),td:nth-child(2){position:sticky;left:95px;z-index:12;background:#111827;text-align:left;min-width:120px}
+th:nth-child(3),td:nth-child(3){position:sticky;left:215px;z-index:12;background:#111827;min-width:95px}
+th:nth-child(4),td:nth-child(4){position:sticky;left:310px;z-index:12;background:#111827;min-width:95px}
+th:nth-child(5),td:nth-child(5){position:sticky;left:405px;z-index:12;background:#111827;min-width:95px}
+th:nth-child(6),td:nth-child(6){position:sticky;left:500px;z-index:12;background:#111827;min-width:110px}
+.up{color:var(--up)}.down{color:var(--down)}.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px}.card{background:#111827;border:1px solid rgba(148,163,184,.25);border-radius:8px;overflow:auto}.card h3{margin:0;padding:10px 12px;background:#1f2937;font-size:14px}
+.hidden{display:none}
+</style>
 </head>
 <body>
-    <aside class="sidebar">
-        <div class="brand">🧾 A股个股跟踪</div>
-        <div class="menu"><div class="menu-item">A股个股跟踪模块</div></div>
-        <div class="back"><a href="index.html">← 返回门户首页</a></div>
-    </aside>
-    <main class="main">
-        <div class="header">
-            <div class="title">A股个股跟踪</div>
-            <div class="date-info" id="dateInfo"></div>
-            <div class="ctrl">搜索 <input id="search" placeholder="代码 / 名称"></div>
-            <div class="ctrl">成交额阈值(亿) > <input id="amountThreshold" type="number" step="0.1" value="15"></div>
-            <button onclick="applyFilters()">应用</button>
-            <div class="module-panel" id="modulePanel"></div>
-        </div>
-        <div class="table-wrap" id="tableWrap"></div>
-    </main>
-
+<aside class="sidebar"><div class="brand">🧾 A股个股跟踪</div><div class="date-panel"><div class="date-title">交易日（按天查看表格）</div><select id="tradeDate" onchange="onDateChange()"></select></div><div class="back"><a href="index.html">← 返回门户首页</a></div></aside>
+<main class="main"><div class="header"><div class="title">A股个股跟踪</div><div class="tabs"><button class="tab active" id="tabBasic" onclick="switchTab('basic')">基础跟踪</button><button class="tab" id="tabDraw" onclick="switchTab('draw')">最大回撤</button><button class="tab" id="tabMa" onclick="switchTab('ma')">均线</button></div><div class="ctrl" id="ctrlSearch">搜索 <input id="search" placeholder="代码 / 名称"></div><div class="ctrl" id="ctrlAmt">成交额阈值(亿) > <input id="amountThreshold" type="number" step="0.1" value="15"></div><button id="btnApply" onclick="applyFilters()">应用</button><div class="ctrl hidden" id="drawCtrl">自定义天数 <input id="customDays" type="number" value="90" min="5" style="width:90px"><button onclick="render()">刷新</button></div><div class="module-panel" id="modulePanel"></div></div><div class="table-wrap" id="tableWrap"></div></main>
 <script>
-const RAW = {{STOCK_TRACKER_DATA}};
-const MODULES = {
-    basic: '基本信息', daily: '日度价格行为', pct: '涨跌幅', amount: '成交额', drawdown: '最大回撤与回升', ma: '均线', excess: '超额收益'
-};
-const state = { sortKey: '当日涨跌幅(%)', sortDir: 'desc', search: '', amountThreshold: 15, modules: new Set(Object.keys(MODULES)) };
-
-function toNum(v){ if(v===null||v===undefined||v==='') return null; const n=Number(v); return Number.isFinite(n)?n:null; }
-function format(key, v){
-    if(v===null||v===undefined||v==='') return '-';
-    if(key.includes('_rank')) return String(Math.round(Number(v)));
-    if(key==='当日收盘价') return `${Number(v).toFixed(2)}`;
-    if(key.includes('成交额')||key.includes('市值')) return `${Number(v).toFixed(1)}`;
-    if(key.includes('换手率')) return `${Number(v).toFixed(1)}%`;
-    if(key.includes('涨跌幅')||key.includes('回撤')||key.includes('回升')||key.includes('斜率')||key.includes('乖离率')||key.includes('振幅')) return `${Number(v).toFixed(1)}%`;
-    return v;
-}
-function cls(key,v){ const n=toNum(v); if(n===null) return ''; if(key.includes('涨跌幅')||key.includes('超额')||key.includes('回升')||key.includes('斜率')||key.includes('乖离率')) return n>=0?'up':'down'; return ''; }
-
-function getVisibleColumns(){ return RAW.columns.filter(c => state.modules.has(c.module)); }
-
-function applyFilters(){
-    state.search = document.getElementById('search').value.trim();
-    state.amountThreshold = Number(document.getElementById('amountThreshold').value || 15);
-    render();
-}
-
-function toggleModule(key, checked){ if(checked) state.modules.add(key); else state.modules.delete(key); render(); }
-
-function sortRows(rows){
-    const key=state.sortKey, dir=state.sortDir;
-    rows.sort((a,b)=>{
-        const va=a[key], vb=b[key];
-        const na=toNum(va), nb=toNum(vb);
-        if(na!==null && nb!==null) return dir==='asc'?na-nb:nb-na;
-        const sa=String(va??''), sb=String(vb??'');
-        return dir==='asc'?sa.localeCompare(sb,'zh'):sb.localeCompare(sa,'zh');
-    });
-}
-
-function render(){
-    const cols=getVisibleColumns();
-    const rows=RAW.rows.filter(r=>{
-        const amt=toNum(r['当日成交额(亿)']);
-        if(amt===null || amt<=state.amountThreshold) return false;
-        if(!state.search) return true;
-        return String(r['证券代码']).includes(state.search) || String(r['证券名称']).includes(state.search);
-    });
-    sortRows(rows);
-
-    let html='<table><thead><tr>';
-    cols.forEach(c=>{ const s = state.sortKey===c.key ? (state.sortDir==='asc'?' ▲':' ▼') : ''; html += `<th onclick="onSort('${c.key.replace(/'/g,"\\'")}')" class="${s?'sort':''}">${c.label}${s}</th>`;});
-    html+='</tr></thead><tbody>';
-    rows.forEach(r=>{ html+='<tr>'; cols.forEach(c=>{ const v=r[c.key]; html += `<td class="${cls(c.key,v)}">${format(c.key,v)}</td>`; }); html+='</tr>'; });
-    html+='</tbody></table>';
-    document.getElementById('tableWrap').innerHTML=html;
-}
-
-function onSort(key){ if(state.sortKey===key){state.sortDir=state.sortDir==='asc'?'desc':'asc';}else{state.sortKey=key; state.sortDir='desc';} render(); }
-
-function init(){
-    const panel=document.getElementById('modulePanel');
-    Object.entries(MODULES).forEach(([k,v])=>{
-        const el=document.createElement('label'); el.className='check';
-        el.innerHTML=`<input type="checkbox" checked onchange="toggleModule('${k}',this.checked)"> ${v}`;
-        panel.appendChild(el);
-    });
-
-    const meta = RAW.meta || {};
-    if(meta.start_date && meta.end_date && meta.trade_days){
-        document.getElementById('dateInfo').innerText = `数据库区间：${meta.start_date} ~ ${meta.end_date}（${meta.trade_days}个交易日）`;
-    }
-
-    render();
-}
-init();
-</script>
-</body>
-</html>
+const RAW={{STOCK_TRACKER_DATA}};
+const MODULES={basic:'基本信息',daily:'日度价格行为',pct:'涨跌幅',amount:'成交额',excess:'超额收益'};
+const MA_WINDOWS=[5,10,20,60,120,250,850];
+const state={tab:'basic',dateIdx:(RAW.dates||[]).length-1,sortKey:'当日涨跌幅(%)',sortDir:'desc',search:'',amountThreshold:15,modules:new Set(Object.keys(MODULES))};
+function toNum(v){const n=Number(v);return Number.isFinite(n)?n:null}
+function safeRatio(a,b){return (!Number.isFinite(a)||!Number.isFinite(b)||b===0)?0:a/b}
+function pctBetween(arr,s,e){if(s<0)s=0;if(e<=s)return 0;const b=Number(arr[s]),c=Number(arr[e]);if(!b||!Number.isFinite(c))return 0;return (c/b-1)*100}
+function pctCalendarStart(arr,e,mode){const ds=RAW.dates.map(d=>new Date(d));const d=ds[e];if(!d||e<=0)return 0;let t;if(mode==='month')t=new Date(d.getFullYear(),d.getMonth(),1);if(mode==='quarter')t=new Date(d.getFullYear(),Math.floor(d.getMonth()/3)*3,1);if(mode==='year')t=new Date(d.getFullYear(),0,1);let s=ds.findIndex(x=>x>=t);if(s<0)s=0;return pctBetween(arr,s,e)}
+function format(key,v){if(v===null||v===undefined||v==='')return '-';if(key.includes('_rank'))return String(Math.round(Number(v)));if(key==='当日收盘价')return Number(v).toFixed(2);if(key.includes('成交额')||key.includes('市值'))return Number(v).toFixed(1);if(key.includes('换手率')||key.includes('涨跌幅')||key.includes('回撤')||key.includes('回升')||key.includes('斜率')||key.includes('乖离率'))return Number(v).toFixed(1)+'%';return v}
+function cls(key,v){const n=toNum(v);if(n===null)return '';if(key.includes('涨跌幅')||key.includes('超额')||key.includes('回升')||key.includes('斜率')||key.includes('乖离率'))return n>=0?'up':'down';return ''}
+function buildSnapshot(r){const i=state.dateIdx,p=r.__price_series||[],a=r.__amt_series||[],pc=r.__pct_series||[];const o={...r};o['当日收盘价']=p[i]||0;o['当日涨跌幅(%)']=pc[i]||0;o['当日成交额(亿)']=a[i]||0;o['当月涨跌幅(%)']=pctCalendarStart(p,i,'month');o['本季度涨跌幅(%)']=pctCalendarStart(p,i,'quarter');o['本年涨跌幅(%)']=pctCalendarStart(p,i,'year');o['近5日涨跌幅(%)']=pctBetween(p,Math.max(0,i-5),i);o['近10日涨跌幅(%)']=pctBetween(p,Math.max(0,i-10),i);o['近20日涨跌幅(%)']=pctBetween(p,Math.max(0,i-20),i);o['近60日涨跌幅(%)']=pctBetween(p,Math.max(0,i-60),i);o['近120日涨跌幅(%)']=pctBetween(p,Math.max(0,i-120),i);o['近250日涨跌幅(%)']=pctBetween(p,Math.max(0,i-250),i);o['近850日涨跌幅(%)']=pctBetween(p,Math.max(0,i-850),i);o['年初至今涨跌幅(%)']=pctCalendarStart(p,i,'year');o['T-5日成交额(亿)']=a[Math.max(0,i-5)]||0;o['T-4日成交额(亿)']=a[Math.max(0,i-4)]||0;o['T-3日成交额(亿)']=a[Math.max(0,i-3)]||0;o['T-2日成交额(亿)']=a[Math.max(0,i-2)]||0;o['T-1日成交额(亿)']=a[Math.max(0,i-1)]||0;o['今日成交额(亿)']=a[i]||0;o['今日成交额变化率(%)']=safeRatio((a[i]||0)-(a[Math.max(0,i-1)]||0),(a[Math.max(0,i-1)]||0))*100;o['今日成交额/前5日均值']=safeRatio((a[i]||0),((a.slice(Math.max(0,i-5),i).reduce((x,y)=>x+Number(y||0),0))/Math.max(1,Math.min(5,i))));o['今日成交额/前20日均值']=safeRatio((a[i]||0),((a.slice(Math.max(0,i-20),i).reduce((x,y)=>x+Number(y||0),0))/Math.max(1,Math.min(20,i))));const ff=Number(r['自由流通市值(亿)']||0);o['换手率(%)']=safeRatio((a[i]||0),ff)*100;o['自由流通换手率(%)']=safeRatio((a[i]||0),ff)*100;MA_WINDOWS.forEach(w=>{const s=Math.max(0,i-w+1);const seg=p.slice(s,i+1);const ma=seg.length?seg.reduce((x,y)=>x+Number(y||0),0)/seg.length:0;o[`${w}日均线乖离率(%)`]=safeRatio((p[i]||0)-ma,ma)*100;const ps=Math.max(0,i-w);const pseg=p.slice(ps,i);const pma=pseg.length?pseg.reduce((x,y)=>x+Number(y||0),0)/pseg.length:ma;o[`${w}日均线上行斜率(%)`]=safeRatio(ma-pma,pma)*100});return o}
+function getRows(){return RAW.rows.map(buildSnapshot)}
+function sortRows(rows){const k=state.sortKey,d=state.sortDir;rows.sort((a,b)=>{const na=toNum(a[k]),nb=toNum(b[k]);if(na!==null&&nb!==null)return d==='asc'?na-nb:nb-na;return d==='asc'?String(a[k]||'').localeCompare(String(b[k]||''),'zh'):String(b[k]||'').localeCompare(String(a[k]||''),'zh')})}
+function applyFilters(){state.search=document.getElementById('search').value.trim();state.amountThreshold=Number(document.getElementById('amountThreshold').value||15);render()}
+function toggleModule(k,ch){if(ch)state.modules.add(k);else state.modules.delete(k);render()}
+function switchTab(t){state.tab=t;['tabBasic','tabDraw','tabMa'].forEach(id=>document.getElementById(id).classList.remove('active'));document.getElementById(t==='basic'?'tabBasic':t==='draw'?'tabDraw':'tabMa').classList.add('active');const basic=t==='basic';document.getElementById('ctrlSearch').classList.toggle('hidden',!basic);document.getElementById('ctrlAmt').classList.toggle('hidden',!basic);document.getElementById('btnApply').classList.toggle('hidden',!basic);document.getElementById('modulePanel').classList.toggle('hidden',!basic);document.getElementById('drawCtrl').classList.toggle('hidden',t!=='draw');render()}
+function onSort(k){if(state.sortKey===k)state.sortDir=state.sortDir==='asc'?'desc':'asc';else{state.sortKey=k;state.sortDir='desc'};render()}
+function renderBasic(){const cols=RAW.columns.filter(c=>state.modules.has(c.module));const rows=getRows().filter(r=>{const amt=toNum(r['当日成交额(亿)']);if(amt===null||amt<=state.amountThreshold)return false;if(!state.search)return true;return String(r['证券代码']).includes(state.search)||String(r['证券名称']).includes(state.search)});sortRows(rows);let h='<table><thead><tr>';cols.forEach(c=>h+=`<th onclick="onSort('${c.key.replace(/'/g,"\\'")}')">${c.label}</th>`);h+='</tr></thead><tbody>';rows.forEach(r=>{h+='<tr>';cols.forEach(c=>h+=`<td class="${cls(c.key,r[c.key])}">${format(c.key,r[c.key])}</td>`);h+='</tr>'});h+='</tbody></table>';document.getElementById('tableWrap').innerHTML=h}
+function calcMetrics(price,end,lb){const s=Math.max(0,end-lb+1),v=price.slice(s,end+1).map(Number).filter(x=>Number.isFinite(x)&&x>0);if(!v.length)return {mdd:0,cdd:0,mru:0,cru:0};let pk=v[0],tr=v[0],mdd=0,mru=0;v.forEach(x=>{if(x>pk)pk=x;mdd=Math.max(mdd,(pk-x)/pk*100);if(x<tr)tr=x;mru=Math.max(mru,(x-tr)/tr*100)});const c=v[v.length-1];return {mdd,cdd:(pk-c)/pk*100,mru,cru:(c-tr)/tr*100}}
+function renderDraw(){const rows=getRows(),end=state.dateIdx,dates=RAW.dates.map(d=>new Date(d)),d=dates[end],yStart=new Date(d.getFullYear(),0,1);let yi=dates.findIndex(x=>x>=yStart);if(yi<0)yi=0;const ylen=end-yi+1,custom=Math.max(5,Number(document.getElementById('customDays').value||90));let l='<div class="cols"><div class="card"><h3>左栏：近60日</h3><table><thead><tr><th>证券代码</th><th>证券名称</th><th>最大回撤</th><th>当前回撤</th><th>最大回升</th><th>当前回升</th></tr></thead><tbody>';rows.forEach(r=>{const m=calcMetrics(r.__price_series||[],end,60);l+=`<tr><td>${r['证券代码']}</td><td>${r['证券名称']}</td><td>${m.mdd.toFixed(1)}%</td><td>${m.cdd.toFixed(1)}%</td><td>${m.mru.toFixed(1)}%</td><td>${m.cru.toFixed(1)}%</td></tr>`});l+='</tbody></table></div>';
+let rht=`<div class="card"><h3>右栏：年初至今 + 近${custom}日(自定义)</h3><table><thead><tr><th>证券代码</th><th>证券名称</th><th>YTD最大回撤</th><th>YTD当前回撤</th><th>YTD最大回升</th><th>YTD当前回升</th><th>自定义最大回撤</th><th>自定义当前回撤</th><th>自定义最大回升</th><th>自定义当前回升</th></tr></thead><tbody>`;rows.forEach(r=>{const y=calcMetrics(r.__price_series||[],end,ylen),c=calcMetrics(r.__price_series||[],end,custom);rht+=`<tr><td>${r['证券代码']}</td><td>${r['证券名称']}</td><td>${y.mdd.toFixed(1)}%</td><td>${y.cdd.toFixed(1)}%</td><td>${y.mru.toFixed(1)}%</td><td>${y.cru.toFixed(1)}%</td><td>${c.mdd.toFixed(1)}%</td><td>${c.cdd.toFixed(1)}%</td><td>${c.mru.toFixed(1)}%</td><td>${c.cru.toFixed(1)}%</td></tr>`});rht+='</tbody></table></div></div>';document.getElementById('tableWrap').innerHTML=l+rht}
+function renderMa(){const rows=getRows();let h='<table><thead><tr><th>证券代码</th><th>证券名称</th>';MA_WINDOWS.forEach(w=>h+=`<th>${w}日均线乖离率(%)</th>`);MA_WINDOWS.forEach(w=>h+=`<th>${w}日均线上行斜率(%)</th>`);h+='</tr></thead><tbody>';rows.forEach(r=>{h+=`<tr><td>${r['证券代码']}</td><td>${r['证券名称']}</td>`;MA_WINDOWS.forEach(w=>h+=`<td>${Number(r[`${w}日均线乖离率(%)`]||0).toFixed(2)}%</td>`);MA_WINDOWS.forEach(w=>h+=`<td>${Number(r[`${w}日均线上行斜率(%)`]||0).toFixed(2)}%</td>`);h+='</tr>'});h+='</tbody></table>';document.getElementById('tableWrap').innerHTML=h}
+function onDateChange(){state.dateIdx=document.getElementById('tradeDate').selectedIndex;render()}
+function render(){if(state.tab==='basic')renderBasic();else if(state.tab==='draw')renderDraw();else renderMa()}
+(function init(){const sel=document.getElementById('tradeDate');(RAW.dates||[]).forEach(d=>{const o=document.createElement('option');o.textContent=d;sel.appendChild(o)});sel.selectedIndex=state.dateIdx;const p=document.getElementById('modulePanel');Object.entries(MODULES).forEach(([k,v])=>{const el=document.createElement('label');el.className='check';el.innerHTML=`<input type="checkbox" checked onchange="toggleModule('${k}',this.checked)"> ${v}`;p.appendChild(el)});render()})();

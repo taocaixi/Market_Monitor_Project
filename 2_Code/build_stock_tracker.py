@@ -122,6 +122,8 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
             return 0
         return float(a / b)
 
+    date_index = pd.DatetimeIndex(pd.to_datetime(dates))
+
     def pct_between(arr, start_idx, end_idx):
         if start_idx < 0:
             start_idx = 0
@@ -132,6 +134,30 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
         if base == 0 or pd.isna(base) or pd.isna(curr):
             return 0
         return float((curr / base - 1) * 100)
+
+    def pct_from_calendar_start(arr, end_idx, mode):
+        if end_idx <= 0:
+            return 0
+        end_date = date_index[end_idx]
+        if mode == 'month':
+            start_target = pd.Timestamp(end_date.year, end_date.month, 1)
+        elif mode == 'quarter':
+            quarter_month = ((end_date.month - 1) // 3) * 3 + 1
+            start_target = pd.Timestamp(end_date.year, quarter_month, 1)
+        elif mode == 'year':
+            start_target = pd.Timestamp(end_date.year, 1, 1)
+        else:
+            return 0
+
+        pos = date_index.searchsorted(start_target, side='left')
+        if pos >= len(date_index):
+            pos = len(date_index) - 1
+        return pct_between(arr, int(pos), end_idx)
+
+    def pct_from_lookback(arr, end_idx, lookback_days):
+        if end_idx <= 0 or lookback_days <= 0:
+            return 0
+        return pct_between(arr, max(0, end_idx - lookback_days), end_idx)
 
     def calc_window_metrics(price_arr, lookback=60):
         start = max(0, len(price_arr) - lookback)
@@ -167,6 +193,19 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
         }
 
     ma_windows = [5, 10, 20, 60, 120, 250, 850]
+    ytd_start_pos = int(date_index.searchsorted(pd.Timestamp(target_date.year, 1, 1), side='left'))
+
+    listed_info_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '1_Data', '000_common_data', '沪深A股-申万行业-20251216.xlsx')
+    listed_date_map = {}
+    if os.path.exists(listed_info_path):
+        try:
+            listed_df = pd.read_excel(listed_info_path)
+            code_col = listed_df.columns[0]
+            date_col = next((c for c in listed_df.columns if ('上市时间' in str(c) or '上市日期' in str(c))), None)
+            if date_col is not None:
+                listed_date_map = dict(zip(listed_df[code_col].astype(str), listed_df[date_col]))
+        except Exception:
+            listed_date_map = {}
     rows = []
 
     for code in valid_codes:
@@ -184,16 +223,17 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
         ff_mv = float(_get_row_val(row, ['自由流通市值', '流通市值'], 6) or 0)
         pe_ttm = float(_get_row_val(row, ['PE', '市盈率'], 7) or 0)
         pb_mrq = float(_get_row_val(row, ['PB', '市净率'], 8) or 0)
-        listed_date = _format_date_value(_get_row_val(row, ['上市日期'], 9))
-        listed_board = str(_get_row_val(row, ['上市板块', '板块'], 10))
+        listed_date = _format_date_value(listed_date_map.get(str(code), _get_row_val(row, ['上市日期', '上市时间'], 9)))
 
         draw_metrics = calc_window_metrics(price_series, 60)
 
         one = {
             '证券代码': str(code),
             '证券名称': name,
+            '__price_series': [float(x) if pd.notnull(x) else 0 for x in price_series],
+            '__pct_series': [float(x) if pd.notnull(x) else 0 for x in pct_series],
+            '__amt_series': [float(x) if pd.notnull(x) else 0 for x in amt_series],
             '上市日期': listed_date,
-            '上市板块': listed_board,
             '申万一级行业': sw1,
             '申万二级行业': sw2,
             '申万三级行业': sw3,
@@ -204,7 +244,7 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
             '当日成交额(亿)': float(amt_series[idx_last]),
             'PE(TTM)': pe_ttm,
             'PB(MRQ)': pb_mrq,
-            '当月涨跌幅(%)': pct_between(price_series, max(0, idx_last - 21), idx_last),
+            '当月涨跌幅(%)': pct_from_calendar_start(price_series, idx_last, 'month'),
             '开盘涨跌幅(%)': None,
             '日内最高涨幅(%)': None,
             '日内最低跌幅(%)': None,
@@ -212,25 +252,26 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
             '日内收盘位置(%)': None,
             '振幅(%)': None,
             '本周涨跌幅(%)': pct_between(price_series, max(0, idx_last - 5), idx_last),
-            '本季度涨跌幅(%)': pct_between(price_series, max(0, idx_last - 63), idx_last),
-            '本年涨跌幅(%)': pct_between(price_series, max(0, idx_last - 250), idx_last),
-            '近5日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 5), idx_last),
-            '近10日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 10), idx_last),
-            '近20日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 20), idx_last),
-            '近60日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 60), idx_last),
-            '近120日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 120), idx_last),
-            '近250日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 250), idx_last),
-            '近850日涨跌幅(%)': pct_between(price_series, max(0, idx_last - 850), idx_last),
-            '年初至今涨跌幅(%)': pct_between(price_series, max(0, idx_last - 250), idx_last),
+            '本季度涨跌幅(%)': pct_from_calendar_start(price_series, idx_last, 'quarter'),
+            '本年涨跌幅(%)': pct_from_calendar_start(price_series, idx_last, 'year'),
+            '近5日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 5),
+            '近10日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 10),
+            '近20日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 20),
+            '近60日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 60),
+            '近120日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 120),
+            '近250日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 250),
+            '近850日涨跌幅(%)': pct_from_lookback(price_series, idx_last, 850),
+            '年初至今涨跌幅(%)': pct_between(price_series, max(0, ytd_start_pos), idx_last),
             'T-5日成交额(亿)': float(amt_series[max(0, idx_last - 5)]),
             'T-4日成交额(亿)': float(amt_series[max(0, idx_last - 4)]),
             'T-3日成交额(亿)': float(amt_series[max(0, idx_last - 3)]),
             'T-2日成交额(亿)': float(amt_series[max(0, idx_last - 2)]),
             'T-1日成交额(亿)': float(amt_series[max(0, idx_last - 1)]),
+            '今日成交额(亿)': float(amt_series[idx_last]),
             '今日成交额变化率(%)': safe_ratio(amt_series[idx_last] - amt_series[max(0, idx_last - 1)], amt_series[max(0, idx_last - 1)]) * 100,
             '今日成交额/前5日均值': safe_ratio(amt_series[idx_last], np.mean(amt_series[max(0, idx_last - 5):idx_last]) if idx_last > 0 else 0),
             '今日成交额/前20日均值': safe_ratio(amt_series[idx_last], np.mean(amt_series[max(0, idx_last - 20):idx_last]) if idx_last > 0 else 0),
-            '换手率(%)': safe_ratio(amt_series[idx_last], mv) * 100,
+            '换手率(%)': safe_ratio(amt_series[idx_last], ff_mv) * 100,
             '自由流通换手率(%)': safe_ratio(amt_series[idx_last], ff_mv) * 100,
             '近60日最大回撤(%)': draw_metrics['最大回撤(%)'],
             '近60日当前回撤(%)': draw_metrics['当前较最高回撤(%)'],
@@ -280,10 +321,10 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
 
     columns = [
         {'key': '证券代码', 'label': '证券代码', 'module': 'basic'}, {'key': '证券名称', 'label': '证券名称', 'module': 'basic'},
-        {'key': '上市日期', 'label': '上市日期', 'module': 'basic'}, {'key': '上市板块', 'label': '上市板块', 'module': 'basic'},
+        {'key': '上市日期', 'label': '上市日期', 'module': 'basic'},
         {'key': '申万一级行业', 'label': '申万一级行业', 'module': 'basic'}, {'key': '申万二级行业', 'label': '申万二级行业', 'module': 'basic'}, {'key': '申万三级行业', 'label': '申万三级行业', 'module': 'basic'},
-        {'key': '市值(亿)', 'label': '市值(亿)', 'module': 'basic'}, {'key': '自由流通市值(亿)', 'label': '自由流通市值(亿)', 'module': 'basic'}, {'key': '当日收盘价', 'label': '当日收盘价', 'module': 'basic'},
-        {'key': '当日涨跌幅(%)', 'label': '当日涨跌幅(%)', 'module': 'basic'}, {'key': '当日成交额(亿)', 'label': '当日成交额(亿)', 'module': 'basic'}, {'key': 'PE(TTM)', 'label': 'PE(TTM)', 'module': 'basic'}, {'key': 'PB(MRQ)', 'label': 'PB(MRQ)', 'module': 'basic'},
+        {'key': '市值(亿)', 'label': '市值(亿)', 'module': 'basic'}, {'key': '当日收盘价', 'label': '当日收盘价', 'module': 'basic'}, {'key': '当日涨跌幅(%)', 'label': '当日涨跌幅(%)', 'module': 'basic'}, {'key': '当日成交额(亿)', 'label': '当日成交额(亿)', 'module': 'basic'},
+        {'key': '自由流通市值(亿)', 'label': '自由流通市值(亿)', 'module': 'basic'}, {'key': 'PE(TTM)', 'label': 'PE(TTM)', 'module': 'basic'}, {'key': 'PB(MRQ)', 'label': 'PB(MRQ)', 'module': 'basic'},
         {'key': '当月涨跌幅(%)', 'label': '当月涨跌幅(%)', 'module': 'daily'}, {'key': '开盘涨跌幅(%)', 'label': '开盘涨跌幅(%)', 'module': 'daily'}, {'key': '日内最高涨幅(%)', 'label': '日内最高涨幅(%)', 'module': 'daily'},
         {'key': '日内最低跌幅(%)', 'label': '日内最低跌幅(%)', 'module': 'daily'}, {'key': '日内收盘最大回撤(%)', 'label': '日内收盘最大回撤(%)', 'module': 'daily'}, {'key': '日内收盘位置(%)', 'label': '日内收盘位置(%)', 'module': 'daily'}, {'key': '振幅(%)', 'label': '振幅(%)', 'module': 'daily'},
         {'key': '本周涨跌幅(%)', 'label': '本周涨跌幅(%)', 'module': 'pct'}, {'key': '本季度涨跌幅(%)', 'label': '本季度涨跌幅(%)', 'module': 'pct'}, {'key': '本年涨跌幅(%)', 'label': '本年涨跌幅(%)', 'module': 'pct'},
@@ -291,11 +332,9 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
         {'key': '近60日涨跌幅(%)', 'label': '近60日涨跌幅(%)', 'module': 'pct'}, {'key': '近120日涨跌幅(%)', 'label': '近120日涨跌幅(%)', 'module': 'pct'}, {'key': '近250日涨跌幅(%)', 'label': '近250日涨跌幅(%)', 'module': 'pct'}, {'key': '近850日涨跌幅(%)', 'label': '近850日涨跌幅(%)', 'module': 'pct'},
         {'key': '年初至今涨跌幅(%)', 'label': '年初至今涨跌幅(%)', 'module': 'pct'}, {'key': '年初至今涨跌幅_rank', 'label': '年初至今涨跌幅_rank', 'module': 'pct'}, {'key': '近20日涨跌幅_rank', 'label': '近20日涨跌幅_rank', 'module': 'pct'},
         {'key': 'T-5日成交额(亿)', 'label': 'T-5日成交额(亿)', 'module': 'amount'}, {'key': 'T-4日成交额(亿)', 'label': 'T-4日成交额(亿)', 'module': 'amount'}, {'key': 'T-3日成交额(亿)', 'label': 'T-3日成交额(亿)', 'module': 'amount'},
-        {'key': 'T-2日成交额(亿)', 'label': 'T-2日成交额(亿)', 'module': 'amount'}, {'key': 'T-1日成交额(亿)', 'label': 'T-1日成交额(亿)', 'module': 'amount'}, {'key': '今日成交额变化率(%)', 'label': '今日成交额变化率(%)', 'module': 'amount'},
+        {'key': 'T-2日成交额(亿)', 'label': 'T-2日成交额(亿)', 'module': 'amount'}, {'key': 'T-1日成交额(亿)', 'label': 'T-1日成交额(亿)', 'module': 'amount'}, {'key': '今日成交额(亿)', 'label': '今日成交额(亿)', 'module': 'amount'}, {'key': '今日成交额变化率(%)', 'label': '今日成交额变化率(%)', 'module': 'amount'},
         {'key': '今日成交额/前5日均值', 'label': '今日成交额/前5日均值', 'module': 'amount'}, {'key': '今日成交额/前20日均值', 'label': '今日成交额/前20日均值', 'module': 'amount'}, {'key': '换手率(%)', 'label': '换手率(%)', 'module': 'amount'}, {'key': '自由流通换手率(%)', 'label': '自由流通换手率(%)', 'module': 'amount'},
-        {'key': '近60日最大回撤(%)', 'label': '近60日最大回撤(%)', 'module': 'drawdown'}, {'key': '近60日当前回撤(%)', 'label': '近60日当前回撤(%)', 'module': 'drawdown'}, {'key': '近60日最大回升(%)', 'label': '近60日最大回升(%)', 'module': 'drawdown'}, {'key': '近60日当前回升(%)', 'label': '近60日当前回升(%)', 'module': 'drawdown'},
     ]
-
     for w in ma_windows:
         columns.append({'key': f'{w}日均线乖离率(%)', 'label': f'{w}日均线乖离率(%)', 'module': 'ma'})
     for w in ma_windows:
