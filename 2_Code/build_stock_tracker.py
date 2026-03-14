@@ -359,6 +359,11 @@ def process_stock_tracker(bundle, web_template_dir, output_dir, source_index_rec
         }
     }
 
+    os.makedirs(output_dir, exist_ok=True)
+    data_json_path = os.path.join(output_dir, 'a_stock_tracker_data.json')
+    with open(data_json_path, 'w', encoding='utf-8') as f:
+        json.dump(output, f, ensure_ascii=False)
+        
     tpl = os.path.join(web_template_dir, 'a_stock_tracker.html')
     out = os.path.join(output_dir, 'a_stock_tracker.html')
     if os.path.exists(tpl):
