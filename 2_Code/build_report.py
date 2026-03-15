@@ -528,7 +528,7 @@ def build_portal_page():
       <a class="card" href="market_sentiment.html"><div class="name">🌡️ 市场情绪跟踪</div><div class="desc">涨跌停、市场广度、量价背离等情绪指标。</div></a>
       <a class="card" href="industry_monitor.html"><div class="name">🏭 行业全景透视</div><div class="desc">行业维度涨跌、成交与轮动。</div></a>
       <a class="card" href="index_monitor.html"><div class="name">📊 指数量价跟踪</div><div class="desc">宽基与行业指数价格、市盈率、成交额变化。</div></a>
-      <a class="card" href="a_stock_tracker.html"><div class="name">🧾 A股个股跟踪</div><div class="desc">单页内支持基础跟踪、最大回撤、均线三类标签。</div><span class="tag">新增</span></a>
+      <a class="card" href="a_stock_tracker.html"><div class="name">🧾 A股个股跟踪</div><div class="desc">全市场个股多模块指标跟踪，支持搜索、筛选与排序。</div><span class="tag">新增</span></a>
     </div>
   </div>
 </body>
